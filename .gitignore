@@ -1,0 +1,28 @@
+# 用户配置与数据
+config.json
+data/
+models/
+voicevox_core/
+default-audio/
+prompts/
+
+# 打包输出
+dist/
+
+# 依赖
+node_modules/
+
+# 日志与缓存
+*.log
+Cache/
+Code Cache/
+GPUCache/
+# 禁止上传的第三方库（本地运行需要，但不可公开分发）
+libs/live2dcubismcore.min.js
+libs/cubism4.min.js
+# 如果 pixi.min.js 也是手动放入的，建议也一起排除，改用 npm 管理
+# libs/pixi.min.js
+# 排除 VOICEVOX Core 的预编译二进制文件（从官方下载的）
+voicevox_core/
+!voicevox_core/*.md
+!voicevox_core/*.txt

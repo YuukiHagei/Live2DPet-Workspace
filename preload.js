@@ -1,0 +1,197 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+    clearAgentHistory: () => ipcRenderer.invoke('clear-agent-history'),
+    // Pet window
+    createPetWindow: (data) => ipcRenderer.invoke('create-pet-window', data),
+    closePetWindow: () => ipcRenderer.invoke('close-pet-window'),
+    updatePetCharacter: (data) => ipcRenderer.invoke('update-pet-character', data),
+    getCharacterData: () => ipcRenderer.invoke('get-character-data'),
+
+    // Window control
+    setWindowSize: (w, h) => ipcRenderer.invoke('set-window-size', w, h),
+    setWindowPosition: (x, y, w, h) => ipcRenderer.invoke('set-window-position', x, y, w, h),
+    getWindowBounds: () => ipcRenderer.invoke('get-window-bounds'),
+    getWindowPosition: () => ipcRenderer.invoke('get-window-position'),
+
+    // Chat bubble
+    showPetChat: (msg, time, isUserReply) => ipcRenderer.invoke('show-pet-chat', msg, time, isUserReply),
+    closeChatBubble: () => ipcRenderer.invoke('close-chat-bubble'),
+    resizeChatBubble: (w, h) => ipcRenderer.invoke('resize-chat-bubble', w, h),
+    sendUserMessage: (text) => ipcRenderer.invoke('send-user-message', text),
+    openChatDialog: () => ipcRenderer.invoke('open-chat-dialog'),      // ← 新增
+    setAgentMode: (enabled) => ipcRenderer.invoke('set-agent-mode', enabled),
+    sendChatStatus: (icon, text) => ipcRenderer.invoke('send-chat-status', icon, text),
+    requestPlanApproval: (reqId, planText) => ipcRenderer.invoke('request-plan-approval', reqId, planText),
+    respondPlanApproval: (reqId, approved) => ipcRenderer.invoke('respond-plan-approval', reqId, approved),
+    requestConfirmation: (reqId, tool, args) => ipcRenderer.invoke('request-confirmation', reqId, tool, args),
+    respondConfirmation: (reqId, allow) => ipcRenderer.invoke('respond-confirmation', reqId, allow),
+    getAgentMode: () => ipcRenderer.invoke('get-agent-mode'),
+    openAgentHistory: () => ipcRenderer.invoke('open-agent-history'),
+    syncAgentHistory: (data) => ipcRenderer.send('sync-agent-history', data),
+    getAgentHistorySnapshot: () => ipcRenderer.invoke('get-agent-history-snapshot'),
+    openObservationWindow: () => ipcRenderer.invoke('open-observation-window'),
+    syncObservation: (data) => ipcRenderer.send('sync-observation', data),
+    getObservationSnapshot: () => ipcRenderer.invoke('get-observation-snapshot'),
+    getProactiveState: () => ipcRenderer.invoke('get-proactive-state'),
+    setProactiveState: (enabled) => ipcRenderer.invoke('set-proactive-state', enabled),
+    clearChatMemory: () => ipcRenderer.invoke('clear-chat-memory'),
+    clearObservationData: () => ipcRenderer.invoke('clear-observation-data'),
+
+    // Screen & window detection
+    getScreenCapture: () => ipcRenderer.invoke('get-screen-capture'),
+    getScreenCaptureHQ: (targetTitle) => ipcRenderer.invoke('get-screen-capture-hq', targetTitle),
+    getActiveWindow: () => ipcRenderer.invoke('get-active-window'),
+    getOpenWindows: () => ipcRenderer.invoke('get-open-windows'),
+    getSystemIdleTime: () => ipcRenderer.invoke('get-system-idle-time'),
+
+    // Utility
+    getGenderTerm: () => ipcRenderer.invoke('get-gender-term'),
+    openDevTools: () => ipcRenderer.invoke('open-dev-tools'),
+    getAppPath: () => ipcRenderer.invoke('get-app-path'),
+    showSettings: () => ipcRenderer.invoke('show-settings'),
+    loadConfig: () => ipcRenderer.invoke('load-config'),
+    saveConfig: (data) => ipcRenderer.invoke('save-config', data),
+    getCursorPosition: () => ipcRenderer.invoke('get-cursor-position'),
+    showPetContextMenu: () => ipcRenderer.invoke('show-pet-context-menu'),
+    getWindowAnchor: () => ipcRenderer.invoke('get-window-anchor'),
+    setWindowAnchor: (anchor) => ipcRenderer.invoke('set-window-anchor', anchor),
+    readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+    writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
+    listDir: (dirPath) => ipcRenderer.invoke('list-dir', dirPath),
+    mcpListTools: () => ipcRenderer.invoke('mcp-list-tools'),
+    mcpCallTool: (name, args) => ipcRenderer.invoke('mcp-call-tool', name, args),
+    listDirTree: (dirPath, maxDepth) => ipcRenderer.invoke('list-dir-tree', dirPath, maxDepth),
+    searchFiles: (rootPath, pattern, maxResults) => ipcRenderer.invoke('search-files', rootPath, pattern, maxResults),
+    grepText: (rootPath, pattern, filePattern, maxResults) => ipcRenderer.invoke('grep-text', rootPath, pattern, filePattern, maxResults),
+    openUrl: (url) => ipcRenderer.invoke('open-url', url),
+    getToolPolicies: () => ipcRenderer.invoke('get-tool-policies'),
+    setToolPolicies: (policies) => ipcRenderer.invoke('set-tool-policies', policies),
+    mcpGetStatus: () => ipcRenderer.invoke('mcp-get-status'),
+    mcpReload: () => ipcRenderer.invoke('mcp-reload'),
+    mcpTestServer: (config) => ipcRenderer.invoke('mcp-test-server', config),
+    // 每日简报
+    briefGetMorningContext: () => ipcRenderer.invoke('brief-get-morning-context'),
+    briefTrigger: (type) => ipcRenderer.invoke('brief-trigger', type),
+    briefGetState: () => ipcRenderer.invoke('brief-get-state'),
+    briefResetState: () => ipcRenderer.invoke('brief-reset-state'),
+    // 周报/月报
+    reportTrigger: (type) => ipcRenderer.invoke('report-trigger', type),
+    reportResetState: () => ipcRenderer.invoke('report-reset-state'),
+    // Agent 工具：待办 / 日程
+    agentAddTodo: (args) => ipcRenderer.invoke('agent-add-todo', args),
+    agentListTodos: (args) => ipcRenderer.invoke('agent-list-todos', args),
+    agentCompleteTodo: (args) => ipcRenderer.invoke('agent-complete-todo', args),
+    agentUpdateTodo: (args) => ipcRenderer.invoke('agent-update-todo', args),
+    agentDeleteTodo: (args) => ipcRenderer.invoke('agent-delete-todo', args),
+    agentAddSchedule: (args) => ipcRenderer.invoke('agent-add-schedule', args),
+    agentListSchedules: (args) => ipcRenderer.invoke('agent-list-schedules', args),
+    agentUpdateSchedule: (args) => ipcRenderer.invoke('agent-update-schedule', args),
+    agentDeleteSchedule: (args) => ipcRenderer.invoke('agent-delete-schedule', args),
+    agentAddFlashcard: (args) => ipcRenderer.invoke('agent-add-flashcard', args),
+    agentListFlashcards: (args) => ipcRenderer.invoke('agent-list-flashcards', args),
+    agentGetDueCards: (args) => ipcRenderer.invoke('agent-get-due-cards', args),
+    agentReviewFlashcard: (args) => ipcRenderer.invoke('agent-review-flashcard', args),
+    agentDeleteFlashcard: (args) => ipcRenderer.invoke('agent-delete-flashcard', args),
+    agentUpdateFlashcard: (args) => ipcRenderer.invoke('agent-update-flashcard', args),
+    agentFlashcardStats: () => ipcRenderer.invoke('agent-flashcard-stats'),
+    openFlashcardReview: () => ipcRenderer.invoke('open-flashcard-review'),
+    openCalendar: () => ipcRenderer.invoke('open-calendar'),
+    agentAddReminder: (args) => ipcRenderer.invoke('agent-add-reminder', args),
+    agentListReminders: (args) => ipcRenderer.invoke('agent-list-reminders', args),
+    agentDeleteReminder: (args) => ipcRenderer.invoke('agent-delete-reminder', args),
+    // 陪伴天数
+    getCompanionStats: () => ipcRenderer.invoke('get-companion-stats'),
+
+    // Character card management
+    listCharacters: () => ipcRenderer.invoke('list-characters'),
+    loadPrompt: (id) => ipcRenderer.invoke('load-prompt', id),
+    savePrompt: (id, data) => ipcRenderer.invoke('save-prompt', id, data),
+    resetPrompt: (id) => ipcRenderer.invoke('reset-prompt', id),
+    createCharacter: (name) => ipcRenderer.invoke('create-character', name),
+    deleteCharacter: (id) => ipcRenderer.invoke('delete-character', id),
+    renameCharacter: (id, name) => ipcRenderer.invoke('rename-character', id, name),
+    setActiveCharacter: (id) => ipcRenderer.invoke('set-active-character', id),
+    importCharacter: () => ipcRenderer.invoke('import-character'),
+    resetBuiltinCards: () => ipcRenderer.invoke('reset-builtin-cards'),
+
+    // Emotion system
+    triggerExpression: (name) => ipcRenderer.invoke('trigger-expression', name),
+    revertExpression: () => ipcRenderer.invoke('revert-expression'),
+    triggerMotion: (group, index) => ipcRenderer.invoke('trigger-motion', group, index),
+    reportHoverState: (hovering) => ipcRenderer.invoke('report-hover-state', hovering),
+    reportHit: (data) => ipcRenderer.invoke('report-hit', data),
+
+    // Model import & scanning (Phase 1)
+    selectModelFolder: () => ipcRenderer.invoke('select-model-folder'),
+    scanModelInfo: (folder, file) => ipcRenderer.invoke('scan-model-info', folder, file),
+    selectStaticImage: () => ipcRenderer.invoke('select-static-image'),
+    selectImageFolder: () => ipcRenderer.invoke('select-image-folder'),
+    scanImageFolder: (folderPath) => ipcRenderer.invoke('scan-image-folder', folderPath),
+    setTalkingState: (isTalking) => ipcRenderer.invoke('set-talking-state', isTalking),
+    selectBubbleImage: () => ipcRenderer.invoke('select-bubble-image'),
+    selectAppIcon: () => ipcRenderer.invoke('select-app-icon'),
+    copyModelToUserdata: (folder, modelName) => ipcRenderer.invoke('copy-model-to-userdata', folder, modelName),
+    validateModelPaths: () => ipcRenderer.invoke('validate-model-paths'),
+    deleteProfile: (id) => ipcRenderer.invoke('delete-profile', id),
+
+    // TTS (Phase 2)
+    ttsSynthesize: (text) => ipcRenderer.invoke('tts-synthesize', text),
+    ttsGetStatus: () => ipcRenderer.invoke('tts-get-status'),
+    ttsRestart: () => ipcRenderer.invoke('tts-restart'),
+    appRelaunch: () => ipcRenderer.invoke('app-relaunch'),
+    ttsSetConfig: (config) => ipcRenderer.invoke('tts-set-config', config),
+    ttsGetMetas: () => ipcRenderer.invoke('tts-get-metas'),
+    ttsGetAvailableVvms: () => ipcRenderer.invoke('tts-get-available-vvms'),
+    downloadVvm: (filename) => ipcRenderer.invoke('download-vvm', filename),
+    setupVoicevox: () => ipcRenderer.invoke('setup-voicevox'),
+    onVoicevoxSetupProgress: (cb) => ipcRenderer.on('voicevox-setup-progress', (e, msg) => cb(msg)),
+
+    // Default audio (Phase 2)
+    generateDefaultAudio: (phrases, styleId) => ipcRenderer.invoke('generate-default-audio', phrases, styleId),
+    loadDefaultAudio: () => ipcRenderer.invoke('load-default-audio'),
+
+    // Event listeners
+    onCharacterUpdate: (cb) => ipcRenderer.on('character-update', (e, data) => cb(data)),
+    onPetWindowClosed: (cb) => ipcRenderer.on('pet-window-closed', () => cb()),
+    onChatBubbleMessage: (cb) => ipcRenderer.on('chat-bubble-message', (e, data) => cb(data)),
+    onUserMessage: (cb) => ipcRenderer.on('user-message', (e, text) => cb(text)),
+    onShowChatMessage: (cb) => ipcRenderer.on('show-chat-message', (e, data) => cb(data)),
+    onSizeChanged: (cb) => ipcRenderer.on('size-changed', (e, size) => cb(size)),
+    onPlayExpression: (cb) => ipcRenderer.on('play-expression', (e, name) => cb(name)),
+    onRevertExpression: (cb) => ipcRenderer.on('revert-expression', () => cb()),
+    onPlayMotion: (cb) => ipcRenderer.on('play-motion', (e, group, index) => cb(group, index)),
+    onTalkingStateChanged: (cb) => ipcRenderer.on('talking-state-changed', (e, isTalking) => cb(isTalking)),
+    onPetHoverState: (cb) => ipcRenderer.on('pet-hover-state', (e, hovering) => cb(hovering)),
+    onPetHit: (cb) => ipcRenderer.on('pet-hit', (e, data) => cb(data)),
+    onModelConfigUpdate: (cb) => ipcRenderer.on('model-config-update', (e, config) => cb(config)),
+    onEnterChatMode: (cb) => ipcRenderer.on('enter-chat-mode', () => cb()),   // ← 新增
+    onExitChatMode: (cb) => ipcRenderer.on('exit-chat-mode', () => cb()),
+    onChatModeChange: (cb) => ipcRenderer.on('chat-mode-change', (e, isOpen) => cb(isOpen)),
+    onAgentModeChange: (cb) => ipcRenderer.on('agent-mode-change', (e, enabled) => cb(enabled)),
+    onChatStatus: (cb) => ipcRenderer.on('chat-status-message', (e, data) => cb(data)),
+    onConfirmationRequest: (cb) => ipcRenderer.on('confirmation-request', (e, data) => cb(data)),
+    onConfirmationResult: (cb) => ipcRenderer.on('confirmation-result', (e, data) => cb(data)),
+    onPlanApprovalRequest: (cb) => ipcRenderer.on('plan-approval-request', (e, data) => cb(data)),
+    onPlanApprovalResult: (cb) => ipcRenderer.on('plan-approval-result', (e, data) => cb(data)),
+    onReminderTriggered: (cb) => ipcRenderer.on('reminder-triggered', (e, r) => cb(r)),
+    onDailyBriefTriggered: (cb) => ipcRenderer.on('daily-brief-triggered', (e, data) => cb(data)),
+    onReportTriggered: (cb) => ipcRenderer.on('report-triggered', (e, data) => cb(data)),
+    onClearAgentHistory: (cb) => ipcRenderer.on('clear-agent-history', () => cb()),
+    onClearChatMemory: (cb) => ipcRenderer.on('clear-chat-memory', () => cb()),
+    onClearObservationData: (cb) => ipcRenderer.on('clear-observation-data', () => cb()),
+    onAgentHistoryUpdated: (cb) => ipcRenderer.on('agent-history-updated', () => cb()),
+    onObservationUpdated: (cb) => ipcRenderer.on('observation-updated', () => cb()),
+    onProactiveStateChange: (cb) => ipcRenderer.on('proactive-state-change', (e, enabled) => cb(enabled)),
+
+    // External links
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
+    // Enhance system
+    saveEnhanceData: (data) => ipcRenderer.invoke('save-enhance-data', data),
+    loadEnhanceData: () => ipcRenderer.invoke('load-enhance-data'),
+    webSearch: (query, provider, options) => ipcRenderer.invoke('web-search', query, provider, options),
+
+    // Renderer log forwarding (avoids needing --enable-logging)
+    rendererLog: (level, args) => ipcRenderer.send('renderer-log', level, args)
+});

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Bubble</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            width: 100%;
+            height: 100%;
+        }
+
+        .chat-frame {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-image: url('assets/dialog-frame.png');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            background-position: center;
+            display: flex;
+            flex-direction: column;
+            padding: 26px 26px 20px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 6px;
+            right: 10px;
+            z-index: 3;
+            background: transparent;
+            border: none;
+            color: #999;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: none;
+            -webkit-app-region: no-drag;
+        }
+        .chat-frame.chat-mode .close-btn { display: block; }
+        .close-btn:hover { background: rgba(0,0,0,0.06); color: #555; }
+
+        .messages {
+            position: relative;
+            z-index: 1;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 4px 4px 6px;
+            pointer-events: auto;
+            -webkit-app-region: no-drag;
+            scrollbar-width: thin;
+            scrollbar-color: #bbb transparent;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .messages::-webkit-scrollbar { width: 6px; }
+        .messages::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 3px;
+        }
+        .messages::-webkit-scrollbar-track { background: transparent; }
+
+        .message {
+            font-size: 13px;
+            line-height: 1.5;
+            padding: 7px 11px;
+            border-radius: 10px;
+            max-width: 88%;
+            word-wrap: break-word;
+            word-break: break-word;
+            animation: textFadeIn 0.3s ease-out;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .message.user {
+            align-self: flex-end;
+            background: #7eb8e8;
+            color: #fff;
+        }
+        .message.assistant {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.92);
+            color: #555;
+        }
+
+        .message.assistant.proactive {
+    
+            background: rgba(240, 240, 240, 0.9);
+            color: #888;
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        .message.status {
+            align-self: flex-start;
+            background: rgba(230, 230, 230, 0.75);
+            color: #777;
+            font-size: 11px;
+            padding: 4px 9px;
+            border-radius: 8px;
+            max-width: 95%;
+            font-family: 'Consolas', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            animation: textFadeIn 0.25s ease-out;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .message.status.success { color: #4a8c5c; }
+        .message.status.error { color: #c35; }
+        .confirm-card {
+            align-self: flex-start;
+            background: rgba(255, 245, 220, 0.95);
+            border: 1px solid #e8c47a;
+            color: #6b5020;
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            max-width: 92%;
+            animation: textFadeIn 0.25s ease-out;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .confirm-card .confirm-title { font-weight: 600; margin-bottom: 4px; }
+        .confirm-card .confirm-args {
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            background: rgba(255,255,255,0.6);
+            padding: 4px 6px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .confirm-card .confirm-btns { display: flex; gap: 8px; }
+        .confirm-card button {
+            border: none;
+            border-radius: 6px;
+            padding: 4px 14px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .confirm-card .btn-allow { background: #4a8c5c; color: #fff; }
+        .confirm-card .btn-allow:hover { background: #3d7450; }
+        .confirm-card .btn-deny { background: #ddd; color: #555; }
+        .confirm-card .btn-deny:hover { background: #ccc; }
+        .confirm-card.resolved button { display: none; }
+        .confirm-card.resolved .confirm-result {
+            font-size: 11px;
+            color: #888;
+            font-style: italic;
+        }
+        .plan-card {
+            align-self: flex-start;
+            background: rgba(235, 240, 255, 0.97);
+            border: 1px solid #7eb8e8;
+            color: #3a5a7a;
+            font-size: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            max-width: 92%;
+            animation: textFadeIn 0.25s ease-out;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .plan-card .plan-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #4a6fa5;
+        }
+        .plan-card .plan-content {
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: rgba(255,255,255,0.7);
+            padding: 6px 8px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .plan-card .plan-btns { display: flex; gap: 8px; }
+        .plan-card button {
+            border: none;
+            border-radius: 6px;
+            padding: 4px 14px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .plan-card .btn-approve { background: #4a8c5c; color: #fff; }
+        .plan-card .btn-approve:hover { background: #3d7450; }
+        .plan-card .btn-cancel { background: #ddd; color: #555; }
+        .plan-card .btn-cancel:hover { background: #ccc; }
+        .plan-card.resolved button { display: none; }
+        .plan-card.resolved .plan-result {
+            font-size: 11px;
+            color: #888;
+            font-style: italic;
+        }
+
+        .input-area {
+            position: relative;
+            z-index: 2;
+            display: none;
+            gap: 6px;
+            align-items: center;
+            flex: 0 0 auto;
+            padding-top: 6px;
+            -webkit-app-region: no-drag;
+        }
+        .chat-frame.chat-mode .input-area { display: flex; }
+
+        #user-input {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: inherit;
+            outline: none;
+            background: rgba(255,255,255,0.9);
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        #user-input:focus { border-color: #7eb8e8; background: #fff; }
+        #user-input:disabled { opacity: 0.5; }
+
+        #send-btn {
+            background: #7eb8e8;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        #send-btn:hover { background: #6aa5d5; }
+        #send-btn:disabled { background: #ccc; cursor: default; }
+
+        .mode-btn {
+            background: #eee;
+            color: #666;
+            border: none;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            font-size: 13px;
+            flex-shrink: 0;
+            padding: 0;
+            line-height: 1;
+        }
+        .mode-btn:hover { background: #ddd; }
+        .mode-btn.active {
+            background: #7eb8e8;
+            color: #fff;
+        }
+
+        @keyframes textFadeIn {
+            0% { opacity: 0; transform: translateY(4px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.9); }
+        }
+        .fade-out { animation: fadeOut 0.3s ease-in-out forwards; }
+    </style>
+</head>
+<body>
+    <div class="chat-frame">
+        <button class="close-btn" id="close-btn" title="关闭 (ESC)">×</button>
+        <div class="messages" id="messages"></div>
+        <div class="input-area" id="input-area">
+            <button id="mode-toggle" class="mode-btn" title="切换 Agent 模式">💬</button>
+            <input type="text" id="user-input" placeholder="说点什么..." autocomplete="off">
+            <button id="send-btn">➤</button>
+            <button id="clear-memory-btn" class="mode-btn" title="清空对话记忆">🗑</button>
+        </div>
+    </div>
+
+    <script src="src/renderer/pet-chat-bubble.js"></script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>观察数据</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: #f5f6f8;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #333;
+            overflow: hidden;
+        }
+        .header {
+            background: #7eb8e8;
+            color: #fff;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+        }
+        .header h1 { font-size: 15px; font-weight: 600; }
+        .header .close-btn {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+        }
+        .header .close-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .stats {
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #666;
+            background: #fff;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .stats span { margin-right: 16px; }
+        .stats .val { font-weight: 600; color: #7eb8e8; }
+
+        .section {
+            padding: 12px 16px;
+            background: #fff;
+            border-bottom: 1px solid #e5e5e5;
+            max-height: 45%;
+            display: flex;
+            flex-direction: column;
+        }
+        .section:last-of-type {
+            border-bottom: none;
+            flex: 1;
+            min-height: 0;
+        }
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #888;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            flex-shrink: 0;
+        }
+
+        .list {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+        .list::-webkit-scrollbar { width: 6px; }
+        .list::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+        }
+        .list::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            background: #fafbfc;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .contact-item .rank {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #e5eef7;
+            color: #7eb8e8;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-right: 10px;
+        }
+        .contact-item .rank.top1 { background: #ffd76e; color: #8a6d00; }
+        .contact-item .rank.top2 { background: #c8d8e8; color: #4a6580; }
+        .contact-item .rank.top3 { background: #e8c4a0; color: #7a4f20; }
+        .contact-item .name {
+            flex: 1;
+            font-weight: 500;
+            color: #444;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .contact-item .count {
+            color: #7eb8e8;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .contact-item .last-seen {
+            color: #999;
+            font-size: 11px;
+            margin-left: 10px;
+            flex-shrink: 0;
+        }
+        .contact-item .topics {
+            display: flex;
+            gap: 4px;
+            margin-left: 8px;
+            flex-wrap: wrap;
+            max-width: 220px;
+        }
+        .contact-item .topic-tag {
+            background: #eef3f8;
+            color: #5a7ba0;
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+
+        .obs-item {
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            font-size: 12px;
+            border-left: 2px solid #e5e5e5;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .obs-item.matched {
+            border-left-color: #7eb8e8;
+            background: #f5fafd;
+            border-radius: 0 6px 6px 0;
+        }
+        .obs-item .time {
+            color: #999;
+            font-size: 11px;
+            flex-shrink: 0;
+            min-width: 60px;
+        }
+        .obs-item .title {
+            flex: 1;
+            color: #555;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .obs-item .contact-tag {
+            background: #7eb8e8;
+            color: #fff;
+            font-size: 11px;
+            padding: 1px 8px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .empty-hint {
+            text-align: center;
+            color: #bbb;
+            font-size: 12px;
+            padding: 16px 10px;
+            font-style: italic;
+        }
+
+        .footer {
+            padding: 10px 16px;
+            background: #fff;
+            border-top: 1px solid #e5e5e5;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .footer button {
+            border: none;
+            border-radius: 6px;
+            padding: 6px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-refresh { background: #eee; color: #666; }
+        .btn-refresh:hover { background: #ddd; }
+        .btn-clear { background: #e08080; color: #fff; }
+        .btn-clear:hover { background: #d06060; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>观察数据</h1>
+        <button class="close-btn" id="close-btn" title="关闭">×</button>
+    </div>
+
+    <div class="stats">
+        <span>联系人：<span class="val" id="contact-count">0</span></span>
+        <span>观察记录：<span class="val" id="obs-count">0</span></span>
+    </div>
+
+    <div class="section">
+        <div class="section-title">常联系的人</div>
+        <div class="list" id="contacts-list">
+            <div class="empty-hint">暂无数据</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">最近观察</div>
+        <div class="list" id="observations-list">
+            <div class="empty-hint">暂无数据</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <button class="btn-refresh" id="refresh-btn">刷新</button>
+        <button class="btn-clear" id="clear-btn">清空观察数据</button>
+    </div>
+
+    <script src="src/renderer/observation-viewer.js"></script>
+</body>
+</html>

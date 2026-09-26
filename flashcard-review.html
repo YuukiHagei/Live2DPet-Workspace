@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>复习卡片</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            background: #f5f6f8;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #333;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .header {
+            background: #7eb8e8;
+            color: #fff;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .header h1 { font-size: 14px; font-weight: 600; }
+        .header .close-btn {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+        }
+        .header .close-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .progress-area {
+            padding: 10px 20px 6px;
+            flex-shrink: 0;
+        }
+        .progress-text {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .progress-bar {
+            height: 6px;
+            background: #e0e4ea;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #7eb8e8, #5a9ed4);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .card-area {
+            flex: 1;
+            padding: 12px 20px;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .card {
+            flex: 1;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            overflow-y: auto;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .card:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+
+        .card-subject {
+            position: absolute;
+            top: 14px;
+            left: 16px;
+            font-size: 11px;
+            color: #7eb8e8;
+            background: #edf4fa;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .card-tags {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            display: flex;
+            gap: 4px;
+        }
+        .card-tag {
+            font-size: 10px;
+            color: #888;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .card-front, .card-back {
+            font-size: 16px;
+            line-height: 1.8;
+            color: #333;
+            word-break: break-word;
+            max-width: 100%;
+            white-space: pre-wrap;
+        }
+        .card-back {
+            font-size: 15px;
+            color: #2a5a2a;
+            padding-top: 14px;
+            margin-top: 14px;
+            border-top: 1px dashed #d0d8e0;
+            animation: slideIn 0.25s ease;
+        }
+        @keyframes slideIn {
+            0% { opacity: 0; transform: translateY(-8px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .card-hint {
+            position: absolute;
+            bottom: 14px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 11px;
+            color: #bbb;
+            pointer-events: none;
+        }
+
+        .rating-area {
+            padding: 8px 20px 4px;
+            flex-shrink: 0;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .rating-buttons {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        .rating-btn {
+            flex: 1;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 0;
+            font-size: 13px;
+            color: #fff;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .rating-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .rating-btn:not(:disabled):hover {
+            transform: translateY(-1px);
+        }
+        .rating-btn .key {
+            display: block;
+            font-size: 10px;
+            opacity: 0.7;
+            margin-top: 2px;
+        }
+        .btn-again { background: #e08080; }
+        .btn-again:not(:disabled):hover { background: #d06060; }
+        .btn-hard { background: #e8b060; }
+        .btn-hard:not(:disabled):hover { background: #d8a050; }
+        .btn-good { background: #6bb86b; }
+        .btn-good:not(:disabled):hover { background: #5aa85a; }
+        .btn-easy { background: #6aa8d8; }
+        .btn-easy:not(:disabled):hover { background: #5a98c8; }
+
+        .rating-hint {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            padding: 4px 0;
+        }
+
+        .edit-panel {
+            flex: 1;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+        }
+        .edit-panel label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+            margin-top: 4px;
+        }
+        .edit-panel textarea,
+        .edit-panel input[type="text"] {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            resize: vertical;
+        }
+        .edit-panel textarea:focus,
+        .edit-panel input:focus {
+            border-color: #7eb8e8;
+        }
+        .edit-panel #edit-front {
+            min-height: 80px;
+        }
+        .edit-panel #edit-back {
+            min-height: 240px;
+        }
+        .edit-panel .edit-btns {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .edit-panel .edit-btns button {
+            flex: 1;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 0;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-save-edit { background: #6bb86b; color: #fff; }
+        .btn-save-edit:hover { background: #5aa85a; }
+        .btn-cancel-edit { background: #eee; color: #555; }
+        .btn-cancel-edit:hover { background: #ddd; }
+        .btn-edit { background: #7eb8e8; color: #fff; }
+        .btn-edit:hover { background: #5a9ed4; }
+        .footer-left { display: flex; gap: 8px; }
+
+        .footer {
+            padding: 8px 20px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .footer button {
+            border: none;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-skip { background: #eee; color: #666; }
+        .btn-skip:hover { background: #ddd; }
+        .btn-end { background: #e08080; color: #fff; }
+        .btn-end:hover { background: #d06060; }
+
+        /* 顶部工具栏 */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .header-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: #fff;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .header-btn:hover { background: rgba(255,255,255,0.35); }
+
+        /* 列表视图 */
+        .list-panel {
+            flex: 1;
+            padding: 12px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+        }
+        .list-toolbar {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .list-toolbar input,
+        .list-toolbar select {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: inherit;
+            outline: none;
+        }
+        .list-toolbar input { flex: 1; }
+        .list-toolbar input:focus,
+        .list-toolbar select:focus { border-color: #7eb8e8; }
+
+        .list-items {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .list-items::-webkit-scrollbar { width: 6px; }
+        .list-items::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+        }
+
+        .list-item {
+            background: #fff;
+            border-radius: 8px;
+            padding: 10px 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .list-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transform: translateY(-1px);
+        }
+        .list-item .li-main {
+            flex: 1;
+            min-width: 0;
+        }
+        .list-item .li-front {
+            font-size: 13px;
+            color: #333;
+            line-height: 1.4;
+            word-break: break-word;
+            margin-bottom: 4px;
+        }
+        .list-item .li-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            font-size: 10px;
+            color: #888;
+        }
+        .list-item .li-subject {
+            background: #edf4fa;
+            color: #7eb8e8;
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+        .list-item .li-tag {
+            background: #f0f0f0;
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+        .list-item .li-due {
+            color: #999;
+        }
+        .list-item .li-due.overdue { color: #e08080; font-weight: 500; }
+        .list-item .li-del {
+            background: transparent;
+            border: none;
+            color: #ccc;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .list-item .li-del:hover {
+            background: #ffe5e5;
+            color: #e08080;
+        }
+
+        .list-empty {
+            padding: 40px 20px;
+            text-align: center;
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            text-align: center;
+        }
+        .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+        .empty-state .title { font-size: 16px; color: #555; margin-bottom: 6px; }
+        .empty-state .subtitle { font-size: 12px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📚 复习卡片</h1>
+        <div class="header-actions">
+            <button class="header-btn" id="btn-show-list" title="查看全部卡片">📋 全部卡片</button>
+            <button class="close-btn" id="close-btn" title="关闭 (ESC)">×</button>
+        </div>
+    </div>
+
+    <div class="progress-area" id="progress-area">
+        <div class="progress-text">
+            <span id="progress-label">0 / 0</span>
+            <span id="progress-stats"></span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+    </div>
+
+    <div class="card-area" id="card-area">
+        <div class="card" id="card">
+            <div class="card-subject" id="card-subject" style="display:none"></div>
+            <div class="card-tags" id="card-tags"></div>
+            <div class="card-front" id="card-front">加载中...</div>
+            <div class="card-back" id="card-back" style="display:none"></div>
+            <div class="card-hint" id="card-hint">点击卡片 或 按空格 显示答案</div>
+        </div>
+    </div>
+
+    <div class="list-panel" id="list-panel" style="display:none">
+        <div class="list-toolbar">
+            <input type="text" id="list-search" placeholder="搜索正面或背面...">
+            <select id="list-filter">
+                <option value="all">全部</option>
+                <option value="due">仅到期</option>
+            </select>
+            <button class="header-btn" id="btn-new-card" style="background:#6bb86b;color:#fff;font-size:12px;padding:6px 14px;border-radius:6px;">+ 新建卡片</button>
+        </div>
+        <div class="list-items" id="list-items"></div>
+    </div>
+
+    <div class="edit-panel" id="edit-panel" style="display:none">
+        <label>正面（问题/概念）</label>
+        <textarea id="edit-front" rows="3"></textarea>
+        <label>背面（答案/解释）</label>
+        <textarea id="edit-back" rows="12"></textarea>
+        <label>科目</label>
+        <input type="text" id="edit-subject" placeholder="如：艺术概论">
+        <label>标签（逗号分隔）</label>
+        <input type="text" id="edit-tags" placeholder="如：艺术史, 瓦尔堡">
+        <div class="edit-btns">
+            <button class="btn-save-edit" id="btn-save-edit">保存修改</button>
+            <button class="btn-cancel-edit" id="btn-cancel-edit">取消</button>
+        </div>
+    </div>
+
+    <div class="rating-area" id="rating-area">
+        <div class="rating-buttons">
+            <button class="rating-btn btn-again" data-rating="again" disabled>
+                忘了<span class="key">1</span>
+            </button>
+            <button class="rating-btn btn-hard" data-rating="hard" disabled>
+                勉强<span class="key">2</span>
+            </button>
+            <button class="rating-btn btn-good" data-rating="good" disabled>
+                记得<span class="key">3</span>
+            </button>
+            <button class="rating-btn btn-easy" data-rating="easy" disabled>
+                太简单<span class="key">4</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="footer-left">
+            <button class="btn-edit" id="btn-edit">✏️ 编辑</button>
+            <button class="btn-skip" id="btn-skip">跳过这张</button>
+        </div>
+        <button class="btn-end" id="btn-end">结束复习</button>
+    </div>
+
+    <script src="src/renderer/flashcard-review.js"></script>
+</body>
+</html>
