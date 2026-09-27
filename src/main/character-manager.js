@@ -10,15 +10,13 @@ function registerCharacterHandlers(ctx, ipcMain, deps) {
     const { loadConfigFile, saveConfigFile } = configManager;
 
     const bundledPromptsDir = path.join(app.getAppPath(), 'assets', 'prompts');
-    const promptsDir = app.isPackaged
-        ? path.join(app.getPath('userData'), 'prompts')
-        : path.join(app.getAppPath(), 'assets', 'prompts');
+    const promptsDir = path.join(app.getPath('userData'), 'prompts');
 
     // ---- Init: copy bundled prompts & auto-update on version change ----
 
     async function initPrompts() {
         // On first run in packaged mode, copy bundled prompts to userData
-        if (app.isPackaged && !fs.existsSync(promptsDir)) {
+        if (!fs.existsSync(promptsDir)) {
             fs.mkdirSync(promptsDir, { recursive: true });
             try {
                 const files = fs.readdirSync(bundledPromptsDir);
@@ -33,7 +31,7 @@ function registerCharacterHandlers(ctx, ipcMain, deps) {
         }
 
         // Auto-update built-in character cards when app version changes
-        if (app.isPackaged) {
+        if (fs.existsSync(bundledPromptsDir)) {
             const versionFile = path.join(promptsDir, '.bundled-version');
             const currentVersion = app.getVersion();
             let lastVersion = '';

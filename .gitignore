@@ -26,3 +26,4 @@ libs/cubism4.min.js
 voicevox_core/
 !voicevox_core/*.md
 !voicevox_core/*.txt
+config.json

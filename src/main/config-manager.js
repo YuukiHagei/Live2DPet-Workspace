@@ -171,9 +171,7 @@ function createConfigManager(app, options = {}) {
     }
 
     const bundledConfigPath = path.join(basePath, 'config.json');
-    const userConfigPath = app.isPackaged
-        ? path.join(app.getPath('userData'), 'config.json')
-        : path.join(basePath, 'config.json');
+    const userConfigPath = path.join(app.getPath('userData'), 'config.json');
 
     async function loadConfigFile() {
         try {

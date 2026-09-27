@@ -46,7 +46,6 @@
       "flashcard-review.html",
       "agent-history.html",
       "observation-viewer.html",
-      "config.json",
       "src/**/*",
       "assets/**/*",
       "libs/**/*"
@@ -74,6 +73,9 @@
       {
         "from": "README.ja.md",
         "to": "README.ja.md"
+      },
+      { "from": "THIRD_PARTY_LICENSES.md", 
+        "to": "THIRD_PARTY_LICENSES.md" 
       }
     ],
     "win": {

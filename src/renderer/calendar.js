@@ -136,7 +136,28 @@ class CalendarApp {
             num.textContent = d.getDate();
             cell.appendChild(num);
 
-            // 标记
+            // ===== 多天日程：绘制横线 =====
+            const covering = this._schedulesCoveringDay(dayKey);
+            const multiDayList = covering.filter(s => {
+                const startDay = this._tsToDateKey(s.startAt);
+                const endDay = s.endAt ? this._tsToDateKey(s.endAt) : startDay;
+                return startDay !== endDay;
+            });
+
+            if (multiDayList.length > 0) {
+                cell.classList.add('has-multi-day');
+                const isStart = multiDayList.some(s => this._tsToDateKey(s.startAt) === dayKey);
+                const isEnd = multiDayList.some(s => {
+                    const endDay = s.endAt ? this._tsToDateKey(s.endAt) : this._tsToDateKey(s.startAt);
+                    return endDay === dayKey;
+                });
+                if (isStart) cell.classList.add('multi-start');
+                if (isEnd) cell.classList.add('multi-end');
+                // 单日起始日，也要同时显示横线（因为这一格是起始）
+                // 多天日程本身不再画圆点
+            }
+
+            // ===== 单日日程 + 待办：绘制圆点 =====
             const dots = document.createElement('div');
             dots.className = 'day-dots';
 
@@ -183,7 +204,28 @@ class CalendarApp {
     }
 
     _schedulesOfDay(dayKey) {
-        return this.schedules.filter(s => this._tsToDateKey(s.startAt) === dayKey);
+        // 只返回单日日程（起始日 == 结束日），用于绘制圆点
+        return this.schedules.filter(s => {
+            if (this._tsToDateKey(s.startAt) !== dayKey) return false;
+            const endDay = s.endAt ? this._tsToDateKey(s.endAt) : this._tsToDateKey(s.startAt);
+            return endDay === dayKey;
+        });
+    }
+
+    _schedulesCoveringDay(dayKey) {
+        // 返回覆盖这天的所有日程（含多天日程的中间日）
+        const dayTs = this._dateKeyToTs(dayKey);
+        const dayEndTs = dayTs + 24 * 3600 * 1000 - 1;
+        return this.schedules.filter(s => {
+            const start = s.startAt;
+            const end = s.endAt || s.startAt;
+            return start <= dayEndTs && end >= dayTs;
+        });
+    }
+
+    _dateKeyToTs(dayKey) {
+        const [y, m, d] = dayKey.split('-').map(Number);
+        return new Date(y, m - 1, d).getTime();
     }
 
     _todosOfDay(dayKey) {
@@ -198,7 +240,7 @@ class CalendarApp {
         const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
         this.el.detailDate.textContent = `${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`;
 
-        const daySchedules = this._schedulesOfDay(dayKey).sort((a, b) => a.startAt - b.startAt);
+        const daySchedules = this._schedulesCoveringDay(dayKey).sort((a, b) => a.startAt - b.startAt);
         const dayTodos = this._todosOfDay(dayKey);
 
         this.el.itemList.innerHTML = '';
