@@ -344,6 +344,35 @@ class DataStore {
         return r;
     }
 
+    updateReminder({ idOrText, text, remindAt, repeat }) {
+        if (!idOrText) throw new Error('缺少提醒 ID 或文字');
+        const needle = idOrText.trim();
+        let target = this.reminders.find(r => r.id === needle);
+        if (!target) {
+            target = this.reminders.find(r => !r.done && r.text.includes(needle));
+        }
+        if (!target) throw new Error(`未找到提醒：${needle}`);
+
+        const changes = [];
+        if (typeof text === 'string' && text.trim()) {
+            target.text = text.trim();
+            changes.push('文字');
+        }
+        if (remindAt !== undefined && remindAt !== '') {
+            const ts = parseTime(remindAt);
+            if (ts === null) throw new Error(`无法解析提醒时间：${remindAt}`);
+            target.remindAt = ts;
+            changes.push('提醒时间');
+        }
+        if (repeat && ['none', 'daily', 'weekly'].includes(repeat)) {
+            target.repeat = repeat;
+            changes.push('重复');
+        }
+
+        if (changes.length === 0) throw new Error('没有提供任何要修改的字段');
+        this._markDirty();
+        return { reminder: target, changes };
+    }
     deleteReminder({ idOrText }) {
         if (!idOrText) throw new Error('缺少提醒 ID 或文字');
         const needle = idOrText.trim();
@@ -470,7 +499,7 @@ class DataStore {
         return target;
     }
 
-    updateFlashcard({ idOrFront, front, back, tags, subject, resetProgress }) {
+    updateFlashcard({ idOrFront, front, back, tags, subject, resetProgress, dueAt }) {
         if (!idOrFront) throw new Error('缺少卡片 ID 或正面文字');
         const needle = idOrFront.trim();
         let target = this.flashcards.find(c => c.id === needle);
@@ -495,6 +524,15 @@ class DataStore {
         if (typeof subject === 'string') {
             target.subject = subject.trim();
             changes.push('科目');
+        }
+        // 手动设置复习时间（不走 SM-2）
+        if (dueAt !== undefined) {
+            const newDue = parseTime(dueAt);
+            if (dueAt !== null && dueAt !== '' && newDue === null) {
+                throw new Error(`无法解析复习时间：${dueAt}`);
+            }
+            target.dueAt = newDue;
+            changes.push('复习时间');
         }
         if (resetProgress === true) {
             target.interval = 0;

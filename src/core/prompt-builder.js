@@ -101,6 +101,10 @@ class PetPromptBuilder {
             parts.push(this._t('sys.importantReminder'));
         }
 
+        // ★ 当前时间 — 每次构造都重新计算，保证准确
+        parts.push('---');
+        parts.push(this._buildCurrentTimeBlock());
+
         // Dynamic context AFTER rules, clearly separated
         if (dynamicContext) {
             parts.push('---');
@@ -115,6 +119,18 @@ class PetPromptBuilder {
         const prompt = parts.join('\n\n');
         console.log(`[PromptBuilder] System prompt built (${prompt.length} chars), dynamic context: ${dynamicContext ? dynamicContext.length + ' chars' : 'none'}`);
         return prompt;
+    }
+
+    _buildCurrentTimeBlock() {
+        const now = new Date();
+        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mi = String(now.getMinutes()).padStart(2, '0');
+        const weekday = weekdays[now.getDay()];
+        return `【当前时间】\n现在是 ${yyyy}年${mm}月${dd}日 星期${weekday} ${hh}:${mi}。\n你可以直接使用这个时间。用户问"现在几点"、"今天几号"、"星期几"时，直接根据这个回答，不要说你不知道。`;
     }
 
     getAppDetectionPrompt(appName) {

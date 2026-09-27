@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>日历</title>
+    <title>日程中心</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -80,13 +80,12 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
             padding: 4px 2px;
             border-radius: 6px;
             cursor: pointer;
             transition: background 0.1s;
             position: relative;
-            min-height: 0;
+            overflow: hidden;
         }
         .day-cell:hover { background: #f0f6fc; }
         .day-cell.other-month { opacity: 0.3; }
@@ -97,8 +96,10 @@
             color: #444;
             font-weight: 500;
             line-height: 1.2;
+            z-index: 2;
         }
         .day-cell.today .day-num { color: #7eb8e8; font-weight: 700; }
+
         .day-dots {
             display: flex;
             gap: 2px;
@@ -106,8 +107,24 @@
             flex-wrap: wrap;
             justify-content: center;
             max-width: 90%;
+            z-index: 2;
         }
-        /* 多天日程：横向色带 */
+        .dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+        }
+        .dot.schedule { background: #7eb8e8; }
+        .dot.todo { background: #e8b060; }
+        .dot.reminder { background: #b07ee8; }
+        .dot.card { background: #e87eb8; }
+        .dot-count {
+            font-size: 9px;
+            color: #7eb8e8;
+            line-height: 1;
+        }
+
+        /* 多天日程横线 */
         .day-cell.has-multi-day::before {
             content: '';
             position: absolute;
@@ -116,9 +133,8 @@
             top: 22px;
             height: 4px;
             background: #7eb8e8;
-            z-index: 0;
+            z-index: 1;
             pointer-events: none;
-            border-radius: 0;
         }
         .day-cell.multi-start::before {
             left: 50%;
@@ -133,27 +149,10 @@
             border-bottom-right-radius: 2px;
         }
         .day-cell.multi-start.multi-end::before {
-            /* 如果某天既是起始又是结束（理论上不会，但保险起见） */
             left: 25%;
             right: 25%;
         }
-        /* 有多天日程时，让圆点稍微下移，避免与色带重叠 */
-        .day-cell.has-multi-day .day-dots {
-            margin-top: 6px;
-        }
-        .dot {
-            width: 4px;
-            height: 4px;
-            border-radius: 50%;
-            background: #7eb8e8;
-        }
-        .dot.todo { background: #e8b060; }
-        .dot.many { width: 6px; height: 6px; }
-        .dot-count {
-            font-size: 9px;
-            color: #7eb8e8;
-            line-height: 1;
-        }
+        .day-cell.has-multi-day .day-dots { margin-top: 6px; }
 
         .detail-area {
             flex: 1;
@@ -164,6 +163,24 @@
         .detail-area::-webkit-scrollbar { width: 6px; }
         .detail-area::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
 
+        .section {
+            margin-bottom: 14px;
+        }
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #888;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .section-title .count {
+            font-weight: 400;
+            color: #bbb;
+            font-size: 11px;
+        }
+
         .detail-header {
             font-size: 13px;
             font-weight: 600;
@@ -173,18 +190,41 @@
             justify-content: space-between;
             align-items: center;
         }
+
+        .add-dropdown { position: relative; }
         .add-btn {
             background: #6bb86b; color: #fff; border: none;
             border-radius: 6px; padding: 4px 12px; font-size: 12px;
             cursor: pointer; font-family: inherit;
         }
         .add-btn:hover { background: #5aa85a; }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            overflow: hidden;
+            z-index: 50;
+            min-width: 120px;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-menu div {
+            padding: 8px 14px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #444;
+            white-space: nowrap;
+        }
+        .dropdown-menu div:hover { background: #f0f6fc; }
 
         .item-list {
             display: flex;
             flex-direction: column;
             gap: 6px;
-            margin-bottom: 12px;
         }
         .item {
             background: #fff;
@@ -197,20 +237,23 @@
             cursor: pointer;
             transition: all 0.15s;
         }
-        .item:hover {
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
+        .item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .item.schedule { border-left: 3px solid #7eb8e8; }
         .item.todo { border-left: 3px solid #e8b060; }
+        .item.reminder { border-left: 3px solid #b07ee8; }
+        .item.card { border-left: 3px solid #e87eb8; }
+        .item.done { opacity: 0.5; }
+        .item.done .item-title { text-decoration: line-through; }
         .item-time {
             font-size: 11px;
-            color: #7eb8e8;
             font-weight: 500;
             flex-shrink: 0;
             min-width: 44px;
         }
         .item.schedule .item-time { color: #7eb8e8; }
         .item.todo .item-time { color: #e8b060; }
+        .item.reminder .item-time { color: #b07ee8; }
+        .item.card .item-time { color: #e87eb8; }
         .item-main { flex: 1; min-width: 0; }
         .item-title {
             font-size: 12px;
@@ -224,22 +267,32 @@
             color: #999;
             margin-top: 2px;
         }
-        .item-del {
-            background: transparent; border: none; color: #ccc;
-            font-size: 14px; cursor: pointer; padding: 2px 6px;
-            border-radius: 4px; flex-shrink: 0;
+        .item-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
         }
-        .item-del:hover { background: #ffe5e5; color: #e08080; }
+        .item-actions button {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #ccc;
+        }
+        .item-actions .btn-complete:hover { background: #e5f5e5; color: #6bb86b; }
+        .item-actions .btn-del:hover { background: #ffe5e5; color: #e08080; }
 
         .empty-hint {
             text-align: center;
             color: #bbb;
             font-size: 12px;
-            padding: 14px 10px;
+            padding: 10px;
             font-style: italic;
         }
 
-        /* 模态表单 */
+        /* 模态框 */
         .modal-mask {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.4);
@@ -257,11 +310,7 @@
             padding: 16px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         }
-        .modal h3 {
-            font-size: 14px;
-            color: #444;
-            margin-bottom: 12px;
-        }
+        .modal h3 { font-size: 14px; color: #444; margin-bottom: 12px; }
         .modal label {
             display: block;
             font-size: 11px;
@@ -269,7 +318,7 @@
             margin-top: 8px;
             margin-bottom: 3px;
         }
-        .modal input, .modal textarea {
+        .modal input, .modal textarea, .modal select {
             width: 100%;
             border: 1px solid #ddd;
             border-radius: 6px;
@@ -277,14 +326,11 @@
             font-size: 12px;
             font-family: inherit;
             outline: none;
+            background: #fff;
         }
-        .modal input:focus, .modal textarea:focus { border-color: #7eb8e8; }
+        .modal input:focus, .modal textarea:focus, .modal select:focus { border-color: #7eb8e8; }
         .modal textarea { resize: vertical; min-height: 50px; }
-        .modal-btns {
-            display: flex;
-            gap: 8px;
-            margin-top: 14px;
-        }
+        .modal-btns { display: flex; gap: 8px; margin-top: 14px; }
         .modal-btns button {
             flex: 1;
             border: none;
@@ -304,7 +350,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>📅 日历</h1>
+        <h1>📅 日程中心</h1>
         <button class="close-btn" id="close-btn" title="关闭">×</button>
     </div>
 
@@ -323,30 +369,111 @@
     <div class="calendar-grid" id="calendar-grid"></div>
 
     <div class="detail-area">
+        <div class="section" id="undated-section" style="display:none">
+            <div class="section-title">
+                <span>📝 无日期待办</span>
+                <span class="count" id="undated-count"></span>
+            </div>
+            <div class="item-list" id="undated-list"></div>
+        </div>
+        <div class="section" id="repeat-reminder-section" style="display:none">
+            <div class="section-title">
+                <span>🔁 重复提醒</span>
+                <span class="count" id="repeat-reminder-count"></span>
+            </div>
+            <div class="item-list" id="repeat-reminder-list"></div>
+        </div>
         <div class="detail-header">
             <span id="detail-date">选择日期</span>
-            <button class="add-btn" id="btn-add">+ 新建日程</button>
+            <div class="add-dropdown">
+                <button class="add-btn" id="btn-add">+ 新建 ▾</button>
+                <div class="dropdown-menu" id="add-menu">
+                    <div data-type="schedule">📅 日程</div>
+                    <div data-type="todo">✅ 待办</div>
+                    <div data-type="reminder">⏰ 提醒</div>
+                </div>
+            </div>
         </div>
         <div class="item-list" id="item-list"></div>
     </div>
 
-    <div class="modal-mask" id="modal-mask">
+    <!-- 日程模态框 -->
+    <div class="modal-mask" id="modal-schedule">
         <div class="modal">
-            <h3 id="modal-title">新建日程</h3>
+            <h3 id="sched-title-label">新建日程</h3>
             <label>标题</label>
-            <input type="text" id="f-title" placeholder="如：和导师开会">
+            <input type="text" id="sched-title" placeholder="如：和导师开会">
             <label>开始时间</label>
-            <input type="datetime-local" id="f-start">
+            <input type="datetime-local" id="sched-start">
             <label>结束时间（可选）</label>
-            <input type="datetime-local" id="f-end">
+            <input type="datetime-local" id="sched-end">
             <label>地点（可选）</label>
-            <input type="text" id="f-location" placeholder="如：图书馆">
+            <input type="text" id="sched-location" placeholder="如：图书馆">
             <label>备注（可选）</label>
-            <textarea id="f-notes" rows="2"></textarea>
+            <textarea id="sched-notes" rows="2"></textarea>
             <div class="modal-btns">
-                <button class="btn-save" id="btn-save">保存</button>
-                <button class="btn-delete" id="btn-delete" style="display:none">删除</button>
-                <button class="btn-cancel" id="btn-cancel">取消</button>
+                <button class="btn-save" id="sched-save">保存</button>
+                <button class="btn-delete" id="sched-delete" style="display:none">删除</button>
+                <button class="btn-cancel" id="sched-cancel">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 待办模态框 -->
+    <div class="modal-mask" id="modal-todo">
+        <div class="modal">
+            <h3 id="todo-title-label">新建待办</h3>
+            <label>内容</label>
+            <input type="text" id="todo-text" placeholder="如：买牛奶">
+            <label>截止时间（可选）</label>
+            <input type="datetime-local" id="todo-due">
+            <label>优先级</label>
+            <select id="todo-priority">
+                <option value="low">低</option>
+                <option value="normal" selected>普通</option>
+                <option value="high">高</option>
+            </select>
+            <div class="modal-btns">
+                <button class="btn-save" id="todo-save">保存</button>
+                <button class="btn-delete" id="todo-delete" style="display:none">删除</button>
+                <button class="btn-cancel" id="todo-cancel">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提醒模态框 -->
+    <div class="modal-mask" id="modal-reminder">
+        <div class="modal">
+            <h3 id="rem-title-label">新建提醒</h3>
+            <label>内容</label>
+            <input type="text" id="rem-text" placeholder="如：上床睡觉">
+            <label>提醒时间</label>
+            <input type="datetime-local" id="rem-time">
+            <label>重复</label>
+            <select id="rem-repeat">
+                <option value="none">不重复</option>
+                <option value="daily">每天</option>
+                <option value="weekly">每周</option>
+            </select>
+            <div class="modal-btns">
+                <button class="btn-save" id="rem-save">保存</button>
+                <button class="btn-delete" id="rem-delete" style="display:none">删除</button>
+                <button class="btn-cancel" id="rem-cancel">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 复习卡片改期 -->
+    <div class="modal-mask" id="modal-card">
+        <div class="modal">
+            <h3>调整复习时间</h3>
+            <label>卡片</label>
+            <div id="card-front-preview" style="padding:6px 10px;background:#f5f6f8;border-radius:6px;font-size:12px;color:#555;"></div>
+            <label>下次复习日期</label>
+            <input type="datetime-local" id="card-due">
+            <div class="modal-btns">
+                <button class="btn-save" id="card-save">保存</button>
+                <button class="btn-cancel" id="card-cancel">取消</button>
             </div>
         </div>
     </div>

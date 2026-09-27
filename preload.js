@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     agentAddReminder: (args) => ipcRenderer.invoke('agent-add-reminder', args),
     agentListReminders: (args) => ipcRenderer.invoke('agent-list-reminders', args),
     agentDeleteReminder: (args) => ipcRenderer.invoke('agent-delete-reminder', args),
+    agentUpdateReminder: (args) => ipcRenderer.invoke('agent-update-reminder', args),
     // 陪伴天数
     getCompanionStats: () => ipcRenderer.invoke('get-companion-stats'),
 

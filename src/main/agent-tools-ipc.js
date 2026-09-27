@@ -109,6 +109,15 @@ function registerAgentToolsIPC(ctx, ipcMain, deps) {
         }
     });
 
+    ipcMain.handle('agent-update-reminder', async (event, args) => {
+        try {
+            const r = dataStore.updateReminder(args || {});
+            return { success: true, reminder: r.reminder, changes: r.changes };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+    
     ipcMain.handle('agent-delete-reminder', async (event, args) => {
         try {
             const r = dataStore.deleteReminder(args || {});
