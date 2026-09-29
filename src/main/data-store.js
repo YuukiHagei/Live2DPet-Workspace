@@ -46,10 +46,12 @@ class DataStore {
         this.schedulesFile = path.join(dataDir, 'schedules.json');
         this.remindersFile = path.join(dataDir, 'reminders.json');
         this.flashcardsFile = path.join(dataDir, 'flashcards.json');
+        this.chatMemoryFile = path.join(dataDir, 'chat-memory.json');
         this.todos = [];
         this.schedules = [];
         this.reminders = [];
         this.flashcards = [];
+        this.chatMemory = [];
         this._dirty = false;
         this._flushTimer = null;
 
@@ -73,6 +75,10 @@ class DataStore {
                 const data = JSON.parse(fs.readFileSync(this.flashcardsFile, 'utf8'));
                 this.flashcards = Array.isArray(data.flashcards) ? data.flashcards : [];
             }
+            if (fs.existsSync(this.chatMemoryFile)) {
+                const data = JSON.parse(fs.readFileSync(this.chatMemoryFile, 'utf8'));
+                this.chatMemory = Array.isArray(data.messages) ? data.messages : [];
+            }
             console.log(`[DataStore] loaded: ${this.todos.length} todos, ${this.schedules.length} schedules, ${this.reminders.length} reminders, ${this.flashcards.length} cards`);
         } catch (err) {
             console.error('[DataStore] load failed:', err.message);
@@ -95,6 +101,7 @@ class DataStore {
             fs.writeFileSync(this.schedulesFile, JSON.stringify({ schedules: this.schedules }, null, 2));
             fs.writeFileSync(this.remindersFile, JSON.stringify({ reminders: this.reminders }, null, 2));
             fs.writeFileSync(this.flashcardsFile, JSON.stringify({ flashcards: this.flashcards }, null, 2));
+            fs.writeFileSync(this.chatMemoryFile, JSON.stringify({ messages: this.chatMemory }, null, 2));
             this._dirty = false;
         } catch (err) {
             console.error('[DataStore] flush failed:', err.message);
@@ -669,6 +676,25 @@ class DataStore {
                 bySubject
             }
         };
+    }
+
+    // ========== 普通对话记忆 ==========
+
+    loadChatMemory() {
+        return this.chatMemory.slice();
+    }
+
+    saveChatMemory(messages) {
+        if (!Array.isArray(messages)) throw new Error('messages 必须是数组');
+        // 只保留最近 12 条（和渲染端一致）
+        this.chatMemory = messages.slice(-12);
+        this._markDirty();
+        return this.chatMemory;
+    }
+
+    clearChatMemory() {
+        this.chatMemory = [];
+        this._markDirty();
     }
 
     getStats() {

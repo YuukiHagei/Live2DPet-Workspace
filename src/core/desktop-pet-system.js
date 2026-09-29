@@ -592,7 +592,7 @@ class DesktopPetSystem {
         this.agentHistory = new AgentHistory(this.aiClient);
         this.userProfile = new UserProfile(this.aiClient);
         this.userProfile.setRecentMessagesGetter(() => this.chatHistory);
-        this._loadChatMemory();
+        await this._loadChatMemory();
         this.observationLog = new ObservationLog(this.aiClient);
         this.observationLog.save();   // ★ 立即把 localStorage 里的数据同步到主进程
         // 陪伴天数
@@ -2392,7 +2392,9 @@ ${lines.join('\n')}
 
     clearChatMemory() {
         this.chatHistory = [];
-        this._saveChatMemory();
+        if (window.electronAPI?.agentClearChatMemory) {
+            window.electronAPI.agentClearChatMemory().catch(() => {});
+        }
         if (this.userProfile) this.userProfile.clear();
         console.log('[ChatMemory] cleared (chat + profile)');
     }
@@ -2412,31 +2414,64 @@ ${lines.join('\n')}
 
     // ========== 普通对话记忆（方案 B） ==========
 
-    _loadChatMemory() {
+    async _loadChatMemory() {
         try {
-            const raw = localStorage.getItem('live2dpet_chat_memory');
-            if (raw) {
-                const arr = JSON.parse(raw);
-                if (Array.isArray(arr)) {
-                    // 兼容旧数据：没有 timestamp 的用 0 表示"未知时间"
-                    this.chatHistory = arr.map(m => ({
+            // 1. 优先从 JSON 文件读
+            if (window.electronAPI?.agentLoadChatMemory) {
+                const r = await window.electronAPI.agentLoadChatMemory();
+                if (r.success && Array.isArray(r.messages) && r.messages.length > 0) {
+                    this.chatHistory = r.messages.map(m => ({
                         role: m.role,
                         content: m.content,
                         timestamp: m.timestamp || 0
                     }));
+                    console.log('[ChatMemory] loaded from file:', this.chatHistory.length, 'messages');
+                    return;
                 }
-                console.log('[ChatMemory] loaded:', this.chatHistory.length, 'messages');
+            }
+
+            // 2. JSON 为空 → 尝试从 localStorage 迁移（只做一次）
+            const migrated = localStorage.getItem('live2dpet_chat_memory_migrated');
+            if (!migrated) {
+                const raw = localStorage.getItem('live2dpet_chat_memory');
+                if (raw) {
+                    try {
+                        const arr = JSON.parse(raw);
+                        if (Array.isArray(arr) && arr.length > 0) {
+                            this.chatHistory = arr.map(m => ({
+                                role: m.role,
+                                content: m.content,
+                                timestamp: m.timestamp || 0
+                            }));
+                            // 写入 JSON 文件
+                            if (window.electronAPI?.agentSaveChatMemory) {
+                                await window.electronAPI.agentSaveChatMemory(this.chatHistory);
+                            }
+                            console.log('[ChatMemory] migrated from localStorage:', this.chatHistory.length, 'messages');
+                        }
+                    } catch (e) {
+                        console.warn('[ChatMemory] migration parse failed:', e);
+                    }
+                }
+                // 打标记，下次不再尝试迁移（避免每次启动都扫 localStorage）
+                localStorage.setItem('live2dpet_chat_memory_migrated', '1');
+            }
+
+            if (this.chatHistory.length === 0) {
+                console.log('[ChatMemory] empty, starting fresh');
             }
         } catch (e) {
             console.warn('[ChatMemory] load failed:', e);
+            this.chatHistory = [];
         }
     }
 
     _saveChatMemory() {
-        try {
-            localStorage.setItem('live2dpet_chat_memory', JSON.stringify(this.chatHistory));
-        } catch (e) {
-            console.warn('[ChatMemory] save failed:', e);
+        if (window.electronAPI?.agentSaveChatMemory) {
+            // Fire and forget，失败只记日志，不阻塞调用方
+            window.electronAPI.agentSaveChatMemory(this.chatHistory).catch(e => {
+                console.warn('[ChatMemory] save failed:', e);
+            });
         }
     }
 

@@ -190,6 +190,34 @@ function registerAgentToolsIPC(ctx, ipcMain, deps) {
             return { success: false, error: err.message };
         }
     });
+
+    // ========== 普通对话记忆 ==========
+
+    ipcMain.handle('agent-load-chat-memory', async () => {
+        try {
+            return { success: true, messages: dataStore.loadChatMemory() };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('agent-save-chat-memory', async (event, messages) => {
+        try {
+            dataStore.saveChatMemory(messages || []);
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('agent-clear-chat-memory', async () => {
+        try {
+            dataStore.clearChatMemory();
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
 }
 
 module.exports = { registerAgentToolsIPC };
