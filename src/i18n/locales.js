@@ -304,6 +304,7 @@ const I18N = {
     'cloud.push': '☁️ Push to Cloud',
     'cloud.pull': '⬇️ Pull from Cloud',
     'cloud.lastSync': 'Last Sync',
+    'cloud.autoPush': 'Auto-upload after data changes (5s delay)',
   },
   zh: {
     'lang.label': '语言',
@@ -605,7 +606,8 @@ const I18N = {
     'cloud.actionsHint': '上传：把本地数据覆盖到云端。下载：把云端数据覆盖到本地（覆盖前自动备份到 data/.backup/）。',
     'cloud.push': '☁️ 上传到云端',
     'cloud.pull': '⬇️ 从云端下载',
-    'cloud.lastSync': '上次同步',    
+    'cloud.lastSync': '上次同步',
+    'cloud.autoPush': '数据变更后自动上传（延迟 5 秒）',    
   },
   ja: {
     'lang.label': '言語',
@@ -908,6 +910,7 @@ const I18N = {
     'cloud.push': '☁️ クラウドへアップロード',
     'cloud.pull': '⬇️ クラウドからダウンロード',
     'cloud.lastSync': '最終同期',
+    'cloud.autoPush': 'データ変更後に自動アップロード（5秒遅延）',
   }
 };
 

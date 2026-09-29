@@ -110,6 +110,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cloudPull: () => ipcRenderer.invoke('cloud-pull'),
     cloudStatus: () => ipcRenderer.invoke('cloud-status'),
     cloudResetClient: () => ipcRenderer.invoke('cloud-reset-client'),
+    cloudSetAutoPush: (enabled) => ipcRenderer.invoke('cloud-set-auto-push', enabled),
     // 陪伴天数
     getCompanionStats: () => ipcRenderer.invoke('get-companion-stats'),
 

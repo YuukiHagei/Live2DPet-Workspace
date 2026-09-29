@@ -102,6 +102,7 @@ function getDefaultConfig() {
         },
         cloud: {
             enabled: false,
+            autoPush: true,
             provider: 'nutstore',
             webdavUrl: 'https://dav.jianguoyun.com/dav/',
             username: '',

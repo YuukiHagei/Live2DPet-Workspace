@@ -54,6 +54,7 @@ class DataStore {
         this.chatMemory = [];
         this._dirty = false;
         this._flushTimer = null;
+        this._changeListeners = [];
 
         if (!fs.existsSync(dataDir)) {
             fs.mkdirSync(dataDir, { recursive: true });
@@ -85,6 +86,10 @@ class DataStore {
         }
     }
 
+    onChange(fn) {
+        if (typeof fn === 'function') this._changeListeners.push(fn);
+    }
+
     _markDirty() {
         this._dirty = true;
         if (this._flushTimer) return;
@@ -103,6 +108,10 @@ class DataStore {
             fs.writeFileSync(this.flashcardsFile, JSON.stringify({ flashcards: this.flashcards }, null, 2));
             fs.writeFileSync(this.chatMemoryFile, JSON.stringify({ messages: this.chatMemory }, null, 2));
             this._dirty = false;
+            // 通知监听者（用于云同步等副作用）
+            for (const fn of this._changeListeners) {
+                try { fn(); } catch (e) { console.warn('[DataStore] listener error:', e.message); }
+            }
         } catch (err) {
             console.error('[DataStore] flush failed:', err.message);
         }

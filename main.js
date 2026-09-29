@@ -163,6 +163,15 @@ ipcMain.handle('cloud-reset-client', async () => {
     return { success: true };
 });
 
+ipcMain.handle('cloud-set-auto-push', async (event, enabled) => {
+    try {
+        if (ctx.cloudSync) ctx.cloudSync.setAutoPush(!!enabled);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('mcp-test-server', async (event, config) => {
     try {
         return await mcpManager.testServer(config);
@@ -198,8 +207,23 @@ app.whenReady().then(async () => {
     dataStore = new DataStore(dataDir);
     ctx.cloudSync = new CloudSync({
         configManager,
-        dataDir
+        dataDir,
+        dataStore
     });
+
+    // 数据变更 → 触发云同步 debounce
+    dataStore.onChange(() => {
+        if (ctx.cloudSync) ctx.cloudSync.scheduleAutoPush();
+    });
+
+    // 读取配置决定是否启用自动同步
+    try {
+        const cfg = await configManager.loadConfigFile();
+        const autoOn = cfg.cloud?.enabled && cfg.cloud?.autoPush !== false;
+        ctx.cloudSync.setAutoPush(autoOn);
+    } catch (e) {
+        console.warn('[CloudSync] init auto push failed:', e.message);
+    }
     ctx.companionTracker = new CompanionTracker(dataDir);
     // 注册待办/日程 IPC（必须在 dataStore 初始化之后）
     registerAgentToolsIPC(ctx, ipcMain, { dataStore });
@@ -316,7 +340,24 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => {
+let _quitting = false;
+app.on('before-quit', async (e) => {
+    if (_quitting) return;
+
+    // 如果有待处理的云同步，先 flush 再退出
+    if (ctx.cloudSync?.hasPendingPush()) {
+        e.preventDefault();
+        _quitting = true;
+        console.log('[App] Flushing pending cloud push before quit...');
+        try {
+            await ctx.cloudSync.flushPendingPush();
+        } catch (err) {
+            console.warn('[App] Flush failed:', err.message);
+        }
+        app.quit();
+        return;
+    }
+
     ctx.isQuitting = true;
     if (ctx.reminderScheduler) ctx.reminderScheduler.stop();
     if (ctx.dailyBrief) ctx.dailyBrief.stop();

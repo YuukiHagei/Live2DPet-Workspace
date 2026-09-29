@@ -1769,6 +1769,8 @@ async function loadCloudConfig() {
         const enabledEl = document.getElementById('cloud-enabled');
         if (!enabledEl) return;
         enabledEl.checked = c.enabled === true;
+        const autoPushEl = document.getElementById('cloud-auto-push');
+        if (autoPushEl) autoPushEl.checked = c.autoPush !== false;
         document.getElementById('cloud-webdav-url').value = c.webdavUrl || 'https://dav.jianguoyun.com/dav/';
         document.getElementById('cloud-username').value = c.username || '';
         document.getElementById('cloud-app-password').value = c.appPassword || '';
@@ -1804,11 +1806,15 @@ document.getElementById('btn-cloud-save')?.addEventListener('click', async () =>
     const appPassword = document.getElementById('cloud-app-password').value;
     const remotePath = document.getElementById('cloud-remote-path').value.trim() || '/Live2DPet';
 
+    const autoPush = document.getElementById('cloud-auto-push')?.checked ?? true;
+
     await window.electronAPI.saveConfig({
-        cloud: { enabled, webdavUrl, username, appPassword, remotePath }
+        cloud: { enabled, autoPush, webdavUrl, username, appPassword, remotePath }
     });
     // 配置变了，重置 WebDAV 客户端
     await window.electronAPI.cloudResetClient();
+    // 通知主进程刷新自动同步状态
+    await window.electronAPI.cloudSetAutoPush(enabled && autoPush);
     showStatus('cloud-config-status', t('status.saved'), 'success');
 });
 

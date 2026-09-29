@@ -24,6 +24,9 @@ class CloudSync {
         this.deps = deps;
         this.client = null;
         this._status = { lastResult: null, lastAt: 0, syncing: false };
+        this._autoPushEnabled = false;
+        this._autoPushTimer = null;
+        this._pendingPush = false;
     }
 
     /**
@@ -167,6 +170,70 @@ class CloudSync {
                 await client.createDirectory(cur);
             }
         }
+    }
+
+    /**
+     * 启用/禁用自动 push
+     */
+    setAutoPush(enabled) {
+        this._autoPushEnabled = !!enabled;
+        console.log('[CloudSync] auto push:', this._autoPushEnabled ? 'ON' : 'OFF');
+    }
+
+    /**
+     * 数据变更后调用，延迟 5 秒自动 push
+     */
+    scheduleAutoPush() {
+        if (!this._autoPushEnabled) return;
+        if (this._autoPushTimer) clearTimeout(this._autoPushTimer);
+        this._autoPushTimer = setTimeout(() => {
+            this._autoPushTimer = null;
+            this._doAutoPush();
+        }, 5000);
+    }
+
+    async _doAutoPush() {
+        if (this._status.syncing) {
+            // 正在同步，标记待处理，等完成后重试
+            this._pendingPush = true;
+            return;
+        }
+        try {
+            const r = await this.push();
+            if (r.ok) {
+                console.log('[CloudSync] auto push ok, uploaded:', r.uploaded.length);
+            } else {
+                console.warn('[CloudSync] auto push partial fail:', r.failed);
+            }
+        } catch (e) {
+            console.warn('[CloudSync] auto push error:', e.message);
+        }
+        if (this._pendingPush) {
+            this._pendingPush = false;
+            this.scheduleAutoPush();
+        }
+    }
+
+    /**
+     * 退出前调用，立刻 flush 待处理的 push
+     */
+    async flushPendingPush() {
+        if (this._autoPushTimer) {
+            clearTimeout(this._autoPushTimer);
+            this._autoPushTimer = null;
+        }
+        if (!this._autoPushEnabled) return;
+        if (this._status.syncing) return;  // 正在同步就不等了
+        try {
+            await this.push();
+            console.log('[CloudSync] flush push on exit');
+        } catch (e) {
+            console.warn('[CloudSync] flush push failed:', e.message);
+        }
+    }
+
+    hasPendingPush() {
+        return this._autoPushTimer !== null;
     }
 
     getStatus() {
