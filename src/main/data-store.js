@@ -226,7 +226,12 @@ class DataStore {
         const toTs = parseTime(to) ?? (todayStart + 7 * 86400000);
 
         return this.schedules
-            .filter(s => s.startAt >= fromTs && s.startAt <= toTs)
+            .filter(s => {
+                const sStart = s.startAt;
+                const sEnd = s.endAt || s.startAt;
+                // 日程与查询区间有交集：日程开始 ≤ 查询结束 且 日程结束 ≥ 查询开始
+                return sStart <= toTs && sEnd >= fromTs;
+            })
             .sort((a, b) => a.startAt - b.startAt);
     }
 
@@ -593,8 +598,12 @@ class DataStore {
         const todosPending = this.todos.filter(t => !t.done);
         const todosOverdue = todosPending.filter(t => t.dueAt && t.dueAt < toTs);
 
-        // === 日程 ===
-        const schedules = this.schedules.filter(s => s.startAt >= fromTs && s.startAt <= toTs);
+        // === 日程 ===（有交集就算，包括跨天）
+        const schedules = this.schedules.filter(s => {
+            const sStart = s.startAt;
+            const sEnd = s.endAt || s.startAt;
+            return sStart <= toTs && sEnd >= fromTs;
+        });
 
         // === 提醒 ===
         const reminders = this.reminders.filter(r => r.remindAt >= fromTs && r.remindAt <= toTs);

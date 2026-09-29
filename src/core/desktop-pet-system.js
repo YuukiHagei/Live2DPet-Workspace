@@ -1571,6 +1571,10 @@ ${weatherBlock}
 - 如果有日程/提醒/到期待办，简短提一下最重要的 1 件
 - 不要用"早上好"这种机械问候开头
 - 天气是重点，其他信息次要
+【关于日程时间的说明】
+- "全天（进行中）"表示该日程从今天之前就开始了，今天一整天都在进行中
+- "XX:XX 起（跨天）"表示该日程从今天 XX:XX 开始，会持续到明天或更晚
+- 单纯的 "XX:XX" 表示今天当天开始和结束
 - 只输出内容，不要任何前缀或引号`;
 
         try {
@@ -2074,7 +2078,7 @@ ${lines.join('\n')}
                 type: 'function',
                 function: {
                     name: 'add_reminder',
-                    description: '添加定时提醒。用户说"X点提醒我..."、"X分钟后提醒我..."时调用。**跟 add_todo 不同**：todo 是"要做的事"，reminder 是"到点提醒"。如果用户明确说要到点提醒，用这个。',
+                    description: '添加定时提醒。用户说"X点提醒我..."、"X分钟后提醒我..."、"日程结束后提醒我..."时调用。**跟 add_todo 不同**：todo 是"要做的事"，reminder 是"到点提醒"。如果用户说"某日程结束后提醒我"，先 list_schedules 查出该日程的 endAt，再用 endAt 作为 remindAt。',
                     parameters: {
                         type: 'object',
                         properties: {
@@ -2557,7 +2561,10 @@ ${lines.join('\n')}
             if (!r.success) return '添加日程失败：' + r.error;
             const s = r.schedule;
             const startStr = new Date(s.startAt).toLocaleString('zh-CN');
-            return `已添加日程：${s.title}（${startStr}）`;
+            const endStr = s.endAt ? new Date(s.endAt).toLocaleString('zh-CN') : '';
+            const timeRange = endStr ? `${startStr} 至 ${endStr}` : startStr;
+            const loc = s.location ? ` @ ${s.location}` : '';
+            return `已添加日程：${s.title}（${timeRange}${loc}）`;
         }
         if (name === 'list_schedules') {
             const r = await window.electronAPI.agentListSchedules(args);
@@ -2565,8 +2572,11 @@ ${lines.join('\n')}
             if (r.schedules.length === 0) return '该时间段暂无日程';
             const lines = r.schedules.map(s => {
                 const startStr = new Date(s.startAt).toLocaleString('zh-CN');
+                const endStr = s.endAt ? new Date(s.endAt).toLocaleString('zh-CN') : '';
+                const timeRange = endStr ? `${startStr} 至 ${endStr}` : startStr;
                 const loc = s.location ? ` @ ${s.location}` : '';
-                return `📅 ${s.title}${loc} —— ${startStr}`;
+                const notes = s.notes ? ` [备注：${s.notes}]` : '';
+                return `📅 ${s.title}${loc} —— ${timeRange}${notes}`;
             });
             return lines.join('\n');
         }
@@ -2575,7 +2585,10 @@ ${lines.join('\n')}
             if (!r.success) return '修改日程失败：' + r.error;
             const s = r.schedule;
             const startStr = new Date(s.startAt).toLocaleString('zh-CN');
-            return `已修改日程：${s.title}（${startStr}）\n变更：${r.changes.join('，')}`;
+            const endStr = s.endAt ? new Date(s.endAt).toLocaleString('zh-CN') : '';
+            const timeRange = endStr ? `${startStr} 至 ${endStr}` : startStr;
+            const loc = s.location ? ` @ ${s.location}` : '';
+            return `已修改日程：${s.title}（${timeRange}${loc}）\n变更：${r.changes.join('，')}`;
         }
         if (name === 'delete_schedule') {
             const r = await window.electronAPI.agentDeleteSchedule(args);

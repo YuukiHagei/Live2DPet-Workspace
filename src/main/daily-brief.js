@@ -149,11 +149,30 @@ class DailyBrief {
             return {
                 date: this._dateKey(now),
                 weekday: ['日', '一', '二', '三', '四', '五', '六'][now.getDay()],
-                schedules: schedules.map(s => ({
-                    time: new Date(s.startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-                    title: s.title,
-                    location: s.location || ''
-                })),
+                schedules: schedules.map(s => {
+                    const startTs = s.startAt;
+                    const endTs = s.endAt || s.startAt;
+                    let timeLabel;
+                    if (startTs < todayStart) {
+                        // 今天之前就开始了
+                        if (endTs > todayEnd) {
+                            timeLabel = '全天（进行中）';
+                        } else {
+                            timeLabel = '至 ' + new Date(endTs).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                        }
+                    } else if (endTs > todayEnd) {
+                        // 今天开始，延续到明天
+                        timeLabel = new Date(startTs).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) + ' 起（跨天）';
+                    } else {
+                        // 今天开始今天结束
+                        timeLabel = new Date(startTs).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                    }
+                    return {
+                        time: timeLabel,
+                        title: s.title,
+                        location: s.location || ''
+                    };
+                }),
                 reminders: reminders.map(r => ({
                     time: new Date(r.remindAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
                     text: r.text
@@ -192,10 +211,28 @@ class DailyBrief {
                 pendingCount: stillPending.length,
                 dueToday: dueToday.map(t => ({ text: t.text })),
                 todayScheduleCount: todaySchedules.length,
-                tomorrowSchedules: tomorrowSchedules.map(s => ({
-                    time: new Date(s.startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-                    title: s.title
-                })),
+                tomorrowSchedules: tomorrowSchedules.map(s => {
+                    const startTs = s.startAt;
+                    const endTs = s.endAt || s.startAt;
+                    let timeLabel;
+                    if (startTs < tomorrowStart) {
+                        // 明天之前就开始了（今天或更早）
+                        if (endTs > tomorrowEnd) {
+                            timeLabel = '全天（进行中）';
+                        } else {
+                            timeLabel = '至 ' + new Date(endTs).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                        }
+                    } else if (endTs > tomorrowEnd) {
+                        // 明天开始，延续到后天
+                        timeLabel = new Date(startTs).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) + ' 起（跨天）';
+                    } else {
+                        timeLabel = new Date(startTs).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                    }
+                    return {
+                        time: timeLabel,
+                        title: s.title
+                    };
+                }),
                 tomorrowReminders: tomorrowReminders.map(r => ({
                     time: new Date(r.remindAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
                     text: r.text
