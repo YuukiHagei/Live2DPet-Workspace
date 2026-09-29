@@ -75,6 +75,16 @@ class CloudSync {
                 }
             }
             result.ok = result.failed.length === 0;
+            // ★ 成功后写入 config，供 UI 显示"上次同步"
+            if (result.ok) {
+                try {
+                    await this.deps.configManager.saveConfigFile({
+                        cloud: { lastSyncAt: result.at }
+                    });
+                } catch (e) {
+                    console.warn('[CloudSync] save lastSyncAt failed:', e.message);
+                }
+            }
         } catch (err) {
             result.error = err.message;
         } finally {

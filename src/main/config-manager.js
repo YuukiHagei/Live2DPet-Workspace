@@ -279,6 +279,7 @@ function createConfigManager(app, options = {}) {
             if (data.brief) merged.brief = { ...(existing.brief || {}), ...data.brief };
             if (data.report) merged.report = { ...(existing.report || {}), ...data.report };
             if (data.translation) merged.translation = { ...(existing.translation || {}), ...data.translation };
+            if (data.cloud) merged.cloud = { ...(existing.cloud || {}), ...data.cloud };
             if (data.enhance) {
                 merged.enhance = { ...(existing.enhance || {}), ...data.enhance };
                 if (data.enhance.memory) merged.enhance.memory = { ...(existing.enhance?.memory || {}), ...data.enhance.memory };

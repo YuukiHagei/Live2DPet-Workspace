@@ -1830,8 +1830,8 @@ document.getElementById('btn-cloud-push')?.addEventListener('click', async () =>
     if (r.success && r.result?.ok) {
         const files = (r.result.uploaded || []).join('、');
         showStatus('cloud-action-status', `✅ 上传成功：${files}`, 'success');
-        // 刷新 lastSync
-        await loadCloudConfig();
+        updateLastSyncText(r.result.at);   // ← 立即从结果刷新
+        await loadCloudConfig();            // 再从 config 读一次（保证一致）
     } else {
         const err = r.error || (r.result?.failed?.length ? `失败文件：${r.result.failed.map(f => f.filename).join('、')}` : '未知错误');
         showStatus('cloud-action-status', '❌ 上传失败：' + err, 'error');
@@ -1845,6 +1845,7 @@ document.getElementById('btn-cloud-pull')?.addEventListener('click', async () =>
     if (r.success && r.result?.ok) {
         const files = (r.result.downloaded || []).join('、');
         showStatus('cloud-action-status', `✅ 下载成功：${files}\n重启程序后生效`, 'success');
+        updateLastSyncText(r.result.at);
         await loadCloudConfig();
     } else {
         const err = r.error || (r.result?.failed?.length ? `失败文件：${r.result.failed.map(f => f.filename).join('、')}` : '未知错误');
