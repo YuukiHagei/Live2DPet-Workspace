@@ -305,6 +305,8 @@ const I18N = {
     'cloud.pull': '⬇️ Pull from Cloud',
     'cloud.lastSync': 'Last Sync',
     'cloud.autoPush': 'Auto-upload after data changes (5s delay)',
+    'cloud.resetState': '🔧 Reset Sync State (fix false conflicts)',
+    'cloud.resetStateHint': 'If you keep seeing "conflicts" but only changed locally, click this to clear sync records. Next sync will be treated as first-time.',
   },
   zh: {
     'lang.label': '语言',
@@ -607,7 +609,9 @@ const I18N = {
     'cloud.push': '☁️ 上传到云端',
     'cloud.pull': '⬇️ 从云端下载',
     'cloud.lastSync': '上次同步',
-    'cloud.autoPush': '数据变更后自动上传（延迟 5 秒）',    
+    'cloud.autoPush': '数据变更后自动上传（延迟 5 秒）',
+    'cloud.resetState': '🔧 重置同步状态（修复假冲突）',
+    'cloud.resetStateHint': '如果反复提示"冲突"但你只改了本地，点这个按钮清空同步记录。下次同步会当作首次，不会误判。',    
   },
   ja: {
     'lang.label': '言語',
@@ -911,6 +915,8 @@ const I18N = {
     'cloud.pull': '⬇️ クラウドからダウンロード',
     'cloud.lastSync': '最終同期',
     'cloud.autoPush': 'データ変更後に自動アップロード（5秒遅延）',
+    'cloud.resetState': '🔧 同期状態をリセット（偽の競合を修正）',
+    'cloud.resetStateHint': 'ローカルしか変更していないのに「競合」が繰り返し表示される場合、このボタンで同期記録をクリアしてください。',
   }
 };
 

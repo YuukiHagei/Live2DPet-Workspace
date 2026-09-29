@@ -172,6 +172,35 @@ ipcMain.handle('cloud-set-auto-push', async (event, enabled) => {
     }
 });
 
+ipcMain.handle('cloud-analyze-conflicts', async () => {
+    try {
+        return { success: true, ...(await ctx.cloudSync.analyzeConflicts()) };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('cloud-sync-with-resolutions', async (event, resolutions) => {
+    try {
+        return { success: true, result: await ctx.cloudSync.syncWithResolutions(resolutions || {}) };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('cloud-get-unresolved-conflicts', async () => {
+    return { success: true, conflicts: ctx.cloudSync.getUnresolvedConflicts() };
+});
+
+ipcMain.handle('cloud-reset-sync-state', async () => {
+    try {
+        await ctx.cloudSync.resetSyncState();
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('mcp-test-server', async (event, config) => {
     try {
         return await mcpManager.testServer(config);

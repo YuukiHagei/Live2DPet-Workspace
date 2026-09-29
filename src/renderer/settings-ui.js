@@ -1778,8 +1778,22 @@ async function loadCloudConfig() {
         updateLastSyncText(c.lastSyncAt || 0);
     } catch (err) {
         console.warn('[Cloud UI] load failed:', err);
+    }    
+    // 检查是否有自动同步时留下的未解决冲突
+    if (window.electronAPI?.cloudGetUnresolvedConflicts) {
+        const uc = await window.electronAPI.cloudGetUnresolvedConflicts();
+        if (uc.success && uc.conflicts?.length) {
+            // 提示用户
+            const banner = document.getElementById('cloud-action-status');
+            if (banner) {
+                banner.textContent = `⚠️ 检测到 ${uc.conflicts.length} 个冲突文件（来自自动同步）。点击「上传到云端」处理。`;
+                banner.className = 'status error';
+            }
+        }
     }
 }
+
+
 
 function updateLastSyncText(ts) {
     const el = document.getElementById('cloud-last-sync');
@@ -1830,18 +1844,7 @@ document.getElementById('btn-cloud-test')?.addEventListener('click', async () =>
 });
 
 document.getElementById('btn-cloud-push')?.addEventListener('click', async () => {
-    if (!confirm('确定将本地数据上传到云端？\n\n（会覆盖云端的同名文件）')) return;
-    showStatus('cloud-action-status', '⏫ 上传中...', 'info');
-    const r = await window.electronAPI.cloudPush();
-    if (r.success && r.result?.ok) {
-        const files = (r.result.uploaded || []).join('、');
-        showStatus('cloud-action-status', `✅ 上传成功：${files}`, 'success');
-        updateLastSyncText(r.result.at);   // ← 立即从结果刷新
-        await loadCloudConfig();            // 再从 config 读一次（保证一致）
-    } else {
-        const err = r.error || (r.result?.failed?.length ? `失败文件：${r.result.failed.map(f => f.filename).join('、')}` : '未知错误');
-        showStatus('cloud-action-status', '❌ 上传失败：' + err, 'error');
-    }
+    await cloudSyncWithConflictCheck();
 });
 
 document.getElementById('btn-cloud-pull')?.addEventListener('click', async () => {
@@ -1871,3 +1874,155 @@ setTimeout(() => {
     const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
     if (activeTab === 'cloud') loadCloudConfig();
 }, 700);
+
+
+// ========== 云同步：冲突检测与弹窗 ==========
+
+async function cloudSyncWithConflictCheck() {
+    const analysis = await window.electronAPI.cloudAnalyzeConflicts();
+    if (!analysis.success) {
+        showStatus('cloud-action-status', '❌ 冲突分析失败：' + analysis.error, 'error');
+        return;
+    }
+
+    const conflicts = analysis.conflicts || [];
+
+    if (conflicts.length === 0) {
+        // 无冲突，直接同步
+        showStatus('cloud-action-status', '⏫ 同步中...', 'info');
+        const sync = await window.electronAPI.cloudSyncWithResolutions({});
+        handleSyncResult(sync);
+        return;
+    }
+
+    // 有冲突 → 弹窗
+    showConflictDialog(conflicts);
+}
+
+function handleSyncResult(sync) {
+    if (sync.success && sync.result?.ok) {
+        const parts = [];
+        if (sync.result.pushed?.length) parts.push(`上传 ${sync.result.pushed.length} 个`);
+        if (sync.result.pulled?.length) parts.push(`下载 ${sync.result.pulled.length} 个`);
+        if (sync.result.merged?.length) parts.push(`合并 ${sync.result.merged.length} 个`);
+        if (sync.result.skipped?.length) parts.push(`跳过 ${sync.result.skipped.length} 个`);
+        const summary = parts.length ? parts.join('，') : '无变更';
+        showStatus('cloud-action-status', `✅ 同步完成（${summary}）`, 'success');
+        updateLastSyncText(sync.result.at);
+        loadCloudConfig();
+    } else {
+        const err = sync.error
+            || (sync.result?.failed?.length
+                ? sync.result.failed.map(f => `${f.filename}（${f.error}）`).join('；')
+                : '未知错误');
+        showStatus('cloud-action-status', '❌ 同步失败：' + err, 'error');
+    }
+}
+
+function showConflictDialog(conflicts) {
+    // 移除可能已存在的旧弹窗
+    document.getElementById('cloud-conflict-modal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'cloud-conflict-modal';
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4); z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+    `;
+
+    const box = document.createElement('div');
+    box.style.cssText = `
+        background:#fff; border-radius:12px; padding:20px;
+        max-width:540px; width:90%; max-height:80vh; overflow-y:auto;
+        box-shadow:0 8px 24px rgba(0,0,0,0.2);
+    `;
+    box.innerHTML = `
+        <h3 style="font-size:15px;margin-bottom:8px;color:#333;">⚠️ 检测到同步冲突</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:14px;">
+            以下文件在本机和云端都被修改过。请为每个文件选择保留哪个版本。
+        </p>
+        <div id="cloud-conflict-list"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+            <button id="cloud-conflict-apply" class="btn btn-primary" style="flex:1;">应用选择并同步</button>
+            <button id="cloud-conflict-cancel" class="btn btn-secondary" style="flex:1;">取消</button>
+        </div>
+    `;
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+
+    const list = box.querySelector('#cloud-conflict-list');
+    for (const c of conflicts) {
+        const row = document.createElement('div');
+        row.style.cssText = 'border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:8px;';
+
+        const localTime = new Date(c.localMtime).toLocaleString('zh-CN');
+        const remoteTime = new Date(c.remoteMtime).toLocaleString('zh-CN');
+        const nameMap = {
+            'todos.json': '待办',
+            'schedules.json': '日程',
+            'reminders.json': '提醒',
+            'flashcards.json': '复习卡片',
+            'chat-memory.json': '对话记忆',
+            'companion.json': '陪伴天数',
+            'daily-brief.json': '简报状态',
+            'report-state.json': '报告状态'
+        };
+        const displayName = nameMap[c.filename] || c.filename;
+
+        row.innerHTML = `
+            <div style="font-weight:500;margin-bottom:6px;font-size:13px;">
+                ${displayName} <span style="color:#999;font-weight:normal;font-size:11px;">（${c.filename}）</span>
+            </div>
+            <div style="font-size:11px;color:#888;margin-bottom:8px;line-height:1.5;">
+                本地修改：${localTime}<br>
+                云端修改：${remoteTime}
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;">
+                <label style="cursor:pointer;"><input type="radio" name="conf-${c.filename}" value="local" checked> 保留本地</label>
+                <label style="cursor:pointer;"><input type="radio" name="conf-${c.filename}" value="remote"> 保留云端</label>
+                <label style="cursor:pointer;"><input type="radio" name="conf-${c.filename}" value="merge"> 合并（按 id）</label>
+            </div>
+        `;
+        list.appendChild(row);
+    }
+
+    box.querySelector('#cloud-conflict-cancel').onclick = () => modal.remove();
+    box.querySelector('#cloud-conflict-apply').onclick = async () => {
+        const resolutions = {};
+        for (const c of conflicts) {
+            const checked = modal.querySelector(`input[name="conf-${c.filename}"]:checked`);
+            resolutions[c.filename] = checked?.value || 'local';
+        }
+        modal.remove();
+
+        showStatus('cloud-action-status', '⏫ 按选择同步中...', 'info');
+        const sync = await window.electronAPI.cloudSyncWithResolutions(resolutions);
+        handleSyncResult(sync);
+    };
+}
+
+// 打开 Cloud Tab 时检查未解决冲突
+async function checkUnresolvedConflicts() {
+    try {
+        const r = await window.electronAPI.cloudGetUnresolvedConflicts();
+        if (r.success && r.conflicts?.length) {
+            // 有未解决的冲突，自动弹窗
+            showConflictDialog(r.conflicts);
+        }
+    } catch {}
+}
+
+// 重置同步状态
+document.getElementById('btn-cloud-reset-state')?.addEventListener('click', async () => {
+    if (!confirm('确定重置同步状态吗？\n\n这会清空"上次同步时间"记录，下次同步时所有文件都当作首次处理，不会误报冲突。')) return;
+    const r = await window.electronAPI.cloudResetSyncState();
+    if (r.success) {
+        showStatus('cloud-action-status', '✅ 已重置，请再次点击「上传到云端」', 'success');
+        // 刷新 UI 上的冲突提示
+        const banner = document.getElementById('cloud-action-status');
+        await loadCloudConfig();
+    } else {
+        showStatus('cloud-action-status', '❌ 重置失败：' + r.error, 'error');
+    }
+});

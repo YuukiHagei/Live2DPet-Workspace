@@ -111,6 +111,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cloudStatus: () => ipcRenderer.invoke('cloud-status'),
     cloudResetClient: () => ipcRenderer.invoke('cloud-reset-client'),
     cloudSetAutoPush: (enabled) => ipcRenderer.invoke('cloud-set-auto-push', enabled),
+    cloudAnalyzeConflicts: () => ipcRenderer.invoke('cloud-analyze-conflicts'),
+    cloudSyncWithResolutions: (resolutions) => ipcRenderer.invoke('cloud-sync-with-resolutions', resolutions),
+    cloudGetUnresolvedConflicts: () => ipcRenderer.invoke('cloud-get-unresolved-conflicts'),
+    cloudResetSyncState: () => ipcRenderer.invoke('cloud-reset-sync-state'),
     // 陪伴天数
     getCompanionStats: () => ipcRenderer.invoke('get-companion-stats'),
 
