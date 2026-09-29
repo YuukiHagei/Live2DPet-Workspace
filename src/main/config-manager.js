@@ -8,7 +8,7 @@ const path = require('path');
 const { encrypt, decrypt } = require('./crypto-utils');
 
 const CURRENT_CONFIG_VERSION = 1;
-const ENCRYPTED_FIELDS = ['apiKey', 'translation.apiKey', 'enhance.search.customApiKey'];
+const ENCRYPTED_FIELDS = ['apiKey', 'translation.apiKey', 'enhance.search.customApiKey', 'cloud.appPassword'];
 
 function getDefaultModelConfig() {
     return {
@@ -99,6 +99,15 @@ function getDefaultConfig() {
             knowledge: { enabled: false, minIntervalMs: 60000, maxIntervalMs: 3600000 },
             vlm: { enabled: false, baseIntervalMs: 15000, maxIntervalMs: 60000, minFocusSeconds: 10 },
             knowledgeAcq: { enabled: false, minFocusSeconds: 60, termCooldownMs: 3600000, maxTermsPerTopic: 15, maxSearchesPerRequest: 2, retentionDays: 30 }
+        },
+        cloud: {
+            enabled: false,
+            provider: 'nutstore',
+            webdavUrl: 'https://dav.jianguoyun.com/dav/',
+            username: '',
+            appPassword: '',
+            remotePath: '/Live2DPet',
+            lastSyncAt: 0
         }
     };
 }
@@ -162,12 +171,14 @@ function createConfigManager(app, options = {}) {
         if (config.apiKey) config.apiKey = _decrypt(config.apiKey);
         if (config.translation?.apiKey) config.translation.apiKey = _decrypt(config.translation.apiKey);
         if (config.enhance?.search?.customApiKey) config.enhance.search.customApiKey = _decrypt(config.enhance.search.customApiKey);
+        if (config.cloud?.appPassword) config.cloud.appPassword = _decrypt(config.cloud.appPassword);  // ← 新增
     }
 
     function encryptFields(config) {
         if (config.apiKey) config.apiKey = _encrypt(config.apiKey);
         if (config.translation?.apiKey) config.translation.apiKey = _encrypt(config.translation.apiKey);
         if (config.enhance?.search?.customApiKey) config.enhance.search.customApiKey = _encrypt(config.enhance.search.customApiKey);
+        if (config.cloud?.appPassword) config.cloud.appPassword = _encrypt(config.cloud.appPassword);  // ← 新增
     }
 
     const bundledConfigPath = path.join(basePath, 'config.json');

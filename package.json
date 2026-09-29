@@ -16,6 +16,7 @@
     "active-win": "^8.2.1",
     "electron-log": "^5.4.3",
     "koffi": "^2.15.1",
+    "webdav": "^5.11.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -58,7 +59,9 @@
       {
         "from": "voicevox_core",
         "to": "voicevox_core",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "extraFiles": [
@@ -74,8 +77,9 @@
         "from": "README.ja.md",
         "to": "README.ja.md"
       },
-      { "from": "THIRD_PARTY_LICENSES.md", 
-        "to": "THIRD_PARTY_LICENSES.md" 
+      {
+        "from": "THIRD_PARTY_LICENSES.md",
+        "to": "THIRD_PARTY_LICENSES.md"
       }
     ],
     "win": {

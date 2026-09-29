@@ -104,6 +104,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     agentListReminders: (args) => ipcRenderer.invoke('agent-list-reminders', args),
     agentDeleteReminder: (args) => ipcRenderer.invoke('agent-delete-reminder', args),
     agentUpdateReminder: (args) => ipcRenderer.invoke('agent-update-reminder', args),
+    // Cloud sync
+    cloudTestConnection: () => ipcRenderer.invoke('cloud-test-connection'),
+    cloudPush: () => ipcRenderer.invoke('cloud-push'),
+    cloudPull: () => ipcRenderer.invoke('cloud-pull'),
+    cloudStatus: () => ipcRenderer.invoke('cloud-status'),
+    cloudResetClient: () => ipcRenderer.invoke('cloud-reset-client'),
     // 陪伴天数
     getCompanionStats: () => ipcRenderer.invoke('get-companion-stats'),
 

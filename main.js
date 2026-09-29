@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 
+const { CloudSync } = require('./src/main/cloud-sync');
 const { ReportGenerator } = require('./src/main/report-generator');
 const { DailyBrief } = require('./src/main/daily-brief');
 const { CompanionTracker } = require('./src/main/companion-tracker');
@@ -129,6 +130,39 @@ ipcMain.handle('mcp-reload', async () => {
     }
 });
 
+ipcMain.handle('cloud-test-connection', async () => {
+    try {
+        return { success: true, ...(await ctx.cloudSync.testConnection()) };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('cloud-push', async () => {
+    try {
+        return { success: true, result: await ctx.cloudSync.push() };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('cloud-pull', async () => {
+    try {
+        return { success: true, result: await ctx.cloudSync.pull() };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('cloud-status', async () => {
+    return { success: true, status: ctx.cloudSync.getStatus() };
+});
+
+ipcMain.handle('cloud-reset-client', async () => {
+    ctx.cloudSync.reset();
+    return { success: true };
+});
+
 ipcMain.handle('mcp-test-server', async (event, config) => {
     try {
         return await mcpManager.testServer(config);
@@ -162,6 +196,10 @@ app.whenReady().then(async () => {
     // 初始化数据层
     const dataDir = path.join(app.getPath('userData'), 'data');
     dataStore = new DataStore(dataDir);
+    ctx.cloudSync = new CloudSync({
+        configManager,
+        dataDir
+    });
     ctx.companionTracker = new CompanionTracker(dataDir);
     // 注册待办/日程 IPC（必须在 dataStore 初始化之后）
     registerAgentToolsIPC(ctx, ipcMain, { dataStore });
