@@ -1759,3 +1759,108 @@ document.getElementById('btn-reset-report')?.addEventListener('click', async () 
 });
 
 setTimeout(() => loadReportConfig(), 600);
+
+// ========== 云同步 ==========
+
+async function loadCloudConfig() {
+    try {
+        const config = await window.electronAPI.loadConfig();
+        const c = config.cloud || {};
+        const enabledEl = document.getElementById('cloud-enabled');
+        if (!enabledEl) return;
+        enabledEl.checked = c.enabled === true;
+        document.getElementById('cloud-webdav-url').value = c.webdavUrl || 'https://dav.jianguoyun.com/dav/';
+        document.getElementById('cloud-username').value = c.username || '';
+        document.getElementById('cloud-app-password').value = c.appPassword || '';
+        document.getElementById('cloud-remote-path').value = c.remotePath || '/Live2DPet';
+        updateLastSyncText(c.lastSyncAt || 0);
+    } catch (err) {
+        console.warn('[Cloud UI] load failed:', err);
+    }
+}
+
+function updateLastSyncText(ts) {
+    const el = document.getElementById('cloud-last-sync');
+    if (!el) return;
+    if (!ts) {
+        el.textContent = '—';
+        return;
+    }
+    const d = new Date(ts);
+    const now = Date.now();
+    const minsAgo = Math.round((now - ts) / 60000);
+    let agoStr;
+    if (minsAgo < 1) agoStr = '刚刚';
+    else if (minsAgo < 60) agoStr = `${minsAgo} 分钟前`;
+    else if (minsAgo < 1440) agoStr = `${Math.round(minsAgo / 60)} 小时前`;
+    else agoStr = `${Math.round(minsAgo / 1440)} 天前`;
+    el.textContent = `${d.toLocaleString('zh-CN')}（${agoStr}）`;
+}
+
+document.getElementById('btn-cloud-save')?.addEventListener('click', async () => {
+    const enabled = document.getElementById('cloud-enabled').checked;
+    const webdavUrl = document.getElementById('cloud-webdav-url').value.trim();
+    const username = document.getElementById('cloud-username').value.trim();
+    const appPassword = document.getElementById('cloud-app-password').value;
+    const remotePath = document.getElementById('cloud-remote-path').value.trim() || '/Live2DPet';
+
+    await window.electronAPI.saveConfig({
+        cloud: { enabled, webdavUrl, username, appPassword, remotePath }
+    });
+    // 配置变了，重置 WebDAV 客户端
+    await window.electronAPI.cloudResetClient();
+    showStatus('cloud-config-status', t('status.saved'), 'success');
+});
+
+document.getElementById('btn-cloud-test')?.addEventListener('click', async () => {
+    showStatus('cloud-config-status', t('status.testing'), 'info');
+    const r = await window.electronAPI.cloudTestConnection();
+    if (r.success && r.ok) {
+        showStatus('cloud-config-status', `✅ 连接成功，远程目录：${r.remotePath}`, 'success');
+    } else {
+        const err = r.error || (r.ok === false ? '未知错误' : '');
+        showStatus('cloud-config-status', '❌ 连接失败：' + err, 'error');
+    }
+});
+
+document.getElementById('btn-cloud-push')?.addEventListener('click', async () => {
+    if (!confirm('确定将本地数据上传到云端？\n\n（会覆盖云端的同名文件）')) return;
+    showStatus('cloud-action-status', '⏫ 上传中...', 'info');
+    const r = await window.electronAPI.cloudPush();
+    if (r.success && r.result?.ok) {
+        const files = (r.result.uploaded || []).join('、');
+        showStatus('cloud-action-status', `✅ 上传成功：${files}`, 'success');
+        // 刷新 lastSync
+        await loadCloudConfig();
+    } else {
+        const err = r.error || (r.result?.failed?.length ? `失败文件：${r.result.failed.map(f => f.filename).join('、')}` : '未知错误');
+        showStatus('cloud-action-status', '❌ 上传失败：' + err, 'error');
+    }
+});
+
+document.getElementById('btn-cloud-pull')?.addEventListener('click', async () => {
+    if (!confirm('确定从云端下载数据？\n\n（会覆盖本地同名文件，但会先备份到 data/.backup/）')) return;
+    showStatus('cloud-action-status', '⏬ 下载中...', 'info');
+    const r = await window.electronAPI.cloudPull();
+    if (r.success && r.result?.ok) {
+        const files = (r.result.downloaded || []).join('、');
+        showStatus('cloud-action-status', `✅ 下载成功：${files}\n重启程序后生效`, 'success');
+        await loadCloudConfig();
+    } else {
+        const err = r.error || (r.result?.failed?.length ? `失败文件：${r.result.failed.map(f => f.filename).join('、')}` : '未知错误');
+        showStatus('cloud-action-status', '❌ 下载失败：' + err, 'error');
+    }
+});
+
+// Tab 切换到 cloud 时自动加载
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'cloud') {
+        btn.addEventListener('click', () => loadCloudConfig());
+    }
+});
+
+// 初始化后延迟加载一次
+setTimeout(() => {
+    const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+    if (activeTab === 'cloud') loadCloudConfig();
+}, 700);

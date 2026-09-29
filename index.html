@@ -130,6 +130,7 @@
         <button class="tab-btn" data-tab="tts" data-i18n="tab.tts">TTS</button>
         <button class="tab-btn" data-tab="prompt" data-i18n="tab.prompt">Prompt</button>
         <button class="tab-btn" data-tab="mcp" data-i18n="tab.mcp">MCP</button>
+        <button class="tab-btn" data-tab="cloud" data-i18n="tab.cloud">Cloud</button>
     </div>
 
     <!-- Settings Tab -->
@@ -580,6 +581,54 @@
     </div>
     </div>
 
+    <!-- Cloud Sync Tab -->
+    <div id="tab-cloud" class="tab-content">
+    <div class="card">
+        <h2 data-i18n="cloud.title">云同步</h2>
+        <p class="model-info" data-i18n="cloud.hint">通过 WebDAV 将待办、日程、复习卡片、对话记忆同步到坚果云。不支持模型和 VOICEVOX 文件（体积太大）。</p>
+        <label style="display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <input type="checkbox" id="cloud-enabled">
+            <span data-i18n="cloud.enable">启用云同步</span>
+        </label>
+    </div>
+
+    <div class="card">
+        <h2 data-i18n="cloud.auth">账号配置</h2>
+        <label data-i18n="cloud.webdavUrl">WebDAV 地址</label>
+        <input type="text" id="cloud-webdav-url" placeholder="https://dav.jianguoyun.com/dav/">
+        <label data-i18n="cloud.username">用户名（坚果云注册邮箱）</label>
+        <input type="text" id="cloud-username" placeholder="your@email.com">
+        <label data-i18n="cloud.appPassword">应用密码</label>
+        <input type="password" id="cloud-app-password" placeholder="在坚果云 → 安全选项 → 第三方应用管理中生成">
+        <p style="font-size:11px;color:#888;margin-top:4px;" data-i18n="cloud.appPasswordHint">
+            注意：不要填坚果云登录密码，必须使用"应用密码"。生成方式：坚果云网页版 → 账户信息 → 安全选项 → 第三方应用管理 → 添加应用。
+        </p>
+        <label data-i18n="cloud.remotePath">远程目录</label>
+        <input type="text" id="cloud-remote-path" placeholder="/Live2DPet">
+        <div class="btn-row">
+            <button class="btn btn-primary" id="btn-cloud-save" data-i18n="btn.save">Save</button>
+            <button class="btn btn-secondary" id="btn-cloud-test" data-i18n="cloud.test">测试连接</button>
+        </div>
+        <div class="status" id="cloud-config-status"></div>
+    </div>
+
+    <div class="card">
+        <h2 data-i18n="cloud.actions">手动同步</h2>
+        <p class="model-info" data-i18n="cloud.actionsHint">
+            上传：把本地数据覆盖到云端。下载：把云端数据覆盖到本地（覆盖前自动备份到 data/.backup/）。
+        </p>
+        <div class="btn-row">
+            <button class="btn btn-primary" id="btn-cloud-push" data-i18n="cloud.push">☁️ 上传到云端</button>
+            <button class="btn btn-secondary" id="btn-cloud-pull" data-i18n="cloud.pull">⬇️ 从云端下载</button>
+        </div>
+        <div class="status" id="cloud-action-status"></div>
+    </div>
+
+    <div class="card">
+        <h2 data-i18n="cloud.lastSync">上次同步</h2>
+        <p class="model-info" id="cloud-last-sync" style="margin:0;">—</p>
+    </div>
+    </div>
 
     <script src="src/i18n/locales.js"></script>
     <script src="src/core/ai-chat.js"></script>
