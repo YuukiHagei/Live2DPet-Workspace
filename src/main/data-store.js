@@ -121,14 +121,16 @@ class DataStore {
 
     addTodo({ text, dueAt, priority }) {
         if (!text || !text.trim()) throw new Error('待办内容不能为空');
+        const now = Date.now();
         const todo = {
             id: generateId('todo'),
             text: text.trim(),
             done: false,
-            createdAt: Date.now(),
+            createdAt: now,
             dueAt: parseTime(dueAt),
             doneAt: null,
-            priority: ['low', 'normal', 'high'].includes(priority) ? priority : 'normal'
+            priority: ['low', 'normal', 'high'].includes(priority) ? priority : 'normal',
+            updatedAt: now
         };
         this.todos.push(todo);
         this._markDirty();
@@ -160,6 +162,7 @@ class DataStore {
         if (!target) throw new Error(`未找到待办：${needle}`);
         target.done = true;
         target.doneAt = Date.now();
+        target.updatedAt = Date.now();
         this._markDirty();
         return target;
     }
@@ -197,6 +200,7 @@ class DataStore {
         }
 
         if (changes.length === 0) throw new Error('没有提供任何要修改的字段');
+        target.updatedAt = Date.now();
         this._markDirty();
         return { todo: target, changes };
     }
@@ -221,6 +225,7 @@ class DataStore {
         const start = parseTime(startAt);
         if (start === null) throw new Error(`无法解析开始时间：${startAt}`);
         const end = parseTime(endAt);
+        const now = Date.now();
         const schedule = {
             id: generateId('sch'),
             title: title.trim(),
@@ -228,7 +233,8 @@ class DataStore {
             endAt: end,
             location: (location || '').trim(),
             notes: (notes || '').trim(),
-            createdAt: Date.now()
+            createdAt: now,
+            updatedAt: now
         };
         this.schedules.push(schedule);
         this._markDirty();
@@ -292,6 +298,7 @@ class DataStore {
         }
 
         if (changes.length === 0) throw new Error('没有提供任何要修改的字段');
+        target.updatedAt = Date.now();
         this._markDirty();
         return { schedule: target, changes };
     }
@@ -315,14 +322,16 @@ class DataStore {
         if (!text || !text.trim()) throw new Error('提醒内容不能为空');
         const at = parseTime(remindAt);
         if (at === null) throw new Error(`无法解析提醒时间：${remindAt}`);
+        const now = Date.now();
         const reminder = {
             id: generateId('rem'),
             text: text.trim(),
             remindAt: at,
-            repeat: repeat || 'none',   // none / daily / weekly
-            createdAt: Date.now(),
+            repeat: repeat || 'none',
+            createdAt: now,
             done: false,
-            triggeredAt: null
+            triggeredAt: null,
+            updatedAt: now
         };
         this.reminders.push(reminder);
         this._markDirty();
@@ -391,6 +400,7 @@ class DataStore {
         }
 
         if (changes.length === 0) throw new Error('没有提供任何要修改的字段');
+        target.updatedAt = Date.now();
         this._markDirty();
         return { reminder: target, changes };
     }
@@ -429,12 +439,13 @@ class DataStore {
             tags: Array.isArray(tags) ? tags.filter(t => t && t.trim()).map(t => t.trim()) : [],
             subject: (subject || '').trim(),
             createdAt: now,
-            dueAt: now,           // 新建的立刻可复习
-            interval: 0,          // 天
-            easeFactor: 2.5,      // EF 初始值
+            dueAt: now,
+            interval: 0,
+            easeFactor: 2.5,
             repetitions: 0,
             lastReviewedAt: null,
-            reviewHistory: []
+            reviewHistory: [],
+            updatedAt: now
         };
         this.flashcards.push(card);
         this._markDirty();
@@ -516,6 +527,7 @@ class DataStore {
             target.reviewHistory = target.reviewHistory.slice(-10);
         }
 
+        target.updatedAt = Date.now();
         this._markDirty();
         return target;
     }
@@ -565,6 +577,7 @@ class DataStore {
         }
 
         if (changes.length === 0) throw new Error('没有提供任何要修改的字段');
+        target.updatedAt = Date.now();
         this._markDirty();
         return { card: target, changes };
     }

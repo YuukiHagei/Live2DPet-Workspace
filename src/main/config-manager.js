@@ -108,7 +108,8 @@ function getDefaultConfig() {
             username: '',
             appPassword: '',
             remotePath: '/Live2DPet',
-            lastSyncAt: 0
+            lastSyncAt: 0,
+            lastSyncPerFile: {}
         }
     };
 }
@@ -280,7 +281,16 @@ function createConfigManager(app, options = {}) {
             if (data.brief) merged.brief = { ...(existing.brief || {}), ...data.brief };
             if (data.report) merged.report = { ...(existing.report || {}), ...data.report };
             if (data.translation) merged.translation = { ...(existing.translation || {}), ...data.translation };
-            if (data.cloud) merged.cloud = { ...(existing.cloud || {}), ...data.cloud };
+            if (data.cloud) {
+                merged.cloud = { ...(existing.cloud || {}), ...data.cloud };
+                // lastSyncPerFile 做深合并，避免某次只更新一个文件时丢其他的
+                if (data.cloud.lastSyncPerFile) {
+                    merged.cloud.lastSyncPerFile = {
+                        ...(existing.cloud?.lastSyncPerFile || {}),
+                        ...data.cloud.lastSyncPerFile
+                    };
+                }
+            }
             if (data.enhance) {
                 merged.enhance = { ...(existing.enhance || {}), ...data.enhance };
                 if (data.enhance.memory) merged.enhance.memory = { ...(existing.enhance?.memory || {}), ...data.enhance.memory };
