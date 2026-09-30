@@ -9,146 +9,66 @@
     <meta name="apple-mobile-web-app-title" content="Live2DPet">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
     <title>Live2DPet Workspace</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        :root {
-            --primary: #7c4dff;
-            --bg: #f5f6f8;
-            --card: #ffffff;
-            --text: #333;
-            --text-soft: #888;
-            --border: #e5e5e5;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-        }
-        .app {
-            max-width: 640px;
-            margin: 0 auto;
-            padding: 20px 16px 40px;
-        }
-        .hero {
-            background: linear-gradient(135deg, #7c4dff 0%, #b388ff 100%);
-            color: #fff;
-            border-radius: 16px;
-            padding: 32px 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 16px rgba(124, 77, 255, 0.25);
-        }
-        .hero h1 {
-            font-size: 22px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        .hero p {
-            font-size: 14px;
-            opacity: 0.9;
-            line-height: 1.5;
-        }
-        .card {
-            background: var(--card);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        }
-        .card h2 {
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--text);
-        }
-        .card p {
-            font-size: 13px;
-            color: var(--text-soft);
-            line-height: 1.6;
-        }
-        .status-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 0;
-            font-size: 13px;
-            border-bottom: 1px solid var(--border);
-        }
-        .status-row:last-child { border-bottom: none; }
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #ccc;
-            flex-shrink: 0;
-        }
-        .status-dot.ok { background: #4caf50; }
-        .status-dot.warn { background: #ff9800; }
-        .status-dot.err { background: #f44336; }
-        .status-label { flex: 1; color: var(--text-soft); }
-        .status-value { color: var(--text); font-weight: 500; }
-        .footer {
-            text-align: center;
-            font-size: 12px;
-            color: var(--text-soft);
-            margin-top: 24px;
-            line-height: 1.6;
-        }
-        .footer a {
-            color: var(--primary);
-            text-decoration: none;
-        }
-    </style>
 </head>
 <body>
-    <div class="app">
-        <div class="hero">
+    <!-- ========== 首次配置面板 ========== -->
+    <div id="setup-screen" class="screen">
+        <div class="setup-box">
             <h1>Live2DPet Workspace</h1>
-            <p>移动端伴侣 · 数据来自 GitHub Gist</p>
-        </div>
+            <p class="subtitle">连接到 GitHub Gist 以同步数据</p>
 
-        <div class="card">
-            <h2>环境检查</h2>
-            <div class="status-row">
-                <span class="status-dot" id="dot-https"></span>
-                <span class="status-label">HTTPS</span>
-                <span class="status-value" id="val-https">检查中...</span>
-            </div>
-            <div class="status-row">
-                <span class="status-dot" id="dot-sw"></span>
-                <span class="status-label">Service Worker</span>
-                <span class="status-value" id="val-sw">检查中...</span>
-            </div>
-            <div class="status-row">
-                <span class="status-dot" id="dot-manifest"></span>
-                <span class="status-label">Manifest</span>
-                <span class="status-value" id="val-manifest">检查中...</span>
-            </div>
-            <div class="status-row">
-                <span class="status-dot" id="dot-pwa"></span>
-                <span class="status-label">PWA 可安装</span>
-                <span class="status-value" id="val-pwa">检查中...</span>
-            </div>
-        </div>
+            <label>Gist ID</label>
+            <input type="text" id="input-gist-id" placeholder="从 gist.github.com URL 复制" autocomplete="off" autocapitalize="off" autocorrect="off">
 
-        <div class="card">
-            <h2>下一步</h2>
-            <p>骨架已部署。接下来会加入 Gist 连接、待办列表、日程、卡片、AI 聊天。当前页面只用于验证部署链路。</p>
-        </div>
+            <label>GitHub Token</label>
+            <input type="password" id="input-github-token" placeholder="ghp_..." autocomplete="off" autocapitalize="off" autocorrect="off">
 
-        <div class="card">
-            <h2>使用提示</h2>
-            <p>在 iPhone Safari 中点击底部分享按钮 → 添加到主屏幕，即可像 App 一样使用。</p>
-        </div>
+            <button id="btn-connect" class="btn-primary">连接</button>
 
-        <div class="footer">
-            <p>Live2DPet Workspace · MIT License</p>
-            <p><a href="https://github.com/YuukiHagei/Live2DPet-Workspace" target="_blank">GitHub 仓库</a></p>
+            <div id="setup-status" class="status-bar"></div>
+
+            <details class="hint-box">
+                <summary>怎么获取？</summary>
+                <p><strong>Gist ID</strong>：打开你的私有 Gist，URL 是 <code>gist.github.com/用户名/<b>这串就是ID</b></code>。</p>
+                <p><strong>Token</strong>：GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → 勾选 <code>gist</code> 权限 → 生成。</p>
+            </details>
         </div>
     </div>
 
+    <!-- ========== 主界面 ========== -->
+    <div id="main-screen" class="screen" style="display:none">
+        <header class="topbar">
+            <h1>Live2DPet</h1>
+            <button id="btn-refresh" class="icon-btn" title="刷新">⟳</button>
+        </header>
+
+        <main class="content" id="content">
+            <!-- 由 JS 填充 -->
+        </main>
+
+        <nav class="tabbar">
+            <button class="tab active" data-tab="todos">
+                <span class="tab-icon">✅</span>
+                <span class="tab-label">待办</span>
+            </button>
+            <button class="tab" data-tab="schedules">
+                <span class="tab-icon">📅</span>
+                <span class="tab-label">日程</span>
+            </button>
+            <button class="tab" data-tab="flashcards">
+                <span class="tab-icon">📇</span>
+                <span class="tab-label">卡片</span>
+            </button>
+            <button class="tab" data-tab="settings">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-label">设置</span>
+            </button>
+        </nav>
+    </div>
+
+    <script src="gist.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
