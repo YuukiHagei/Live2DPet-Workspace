@@ -49,7 +49,7 @@
         const content = JSON.stringify(payload, null, 2);
         await request('PATCH', gistId, {
             files: { 'live2dpet-data.json': { content } }
-        });
+        }, token);
     }
 
     async function test(gistId, token) {
