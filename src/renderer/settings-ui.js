@@ -1769,21 +1769,38 @@ async function loadCloudConfig() {
         const enabledEl = document.getElementById('cloud-enabled');
         if (!enabledEl) return;
         enabledEl.checked = c.enabled === true;
+
         const autoPushEl = document.getElementById('cloud-auto-push');
         if (autoPushEl) autoPushEl.checked = c.autoPush !== false;
+
+        // Provider
+        const providerEl = document.getElementById('cloud-provider');
+        if (providerEl) providerEl.value = c.provider || 'github-gist';
+
+        // 坚果云字段
         document.getElementById('cloud-webdav-url').value = c.webdavUrl || 'https://dav.jianguoyun.com/dav/';
         document.getElementById('cloud-username').value = c.username || '';
         document.getElementById('cloud-app-password').value = c.appPassword || '';
         document.getElementById('cloud-remote-path').value = c.remotePath || '/Live2DPet';
+
+        // Gist 字段
+        document.getElementById('cloud-gist-id').value = c.gistId || '';
+        document.getElementById('cloud-github-token').value = c.githubToken || '';
+        const syncCharsEl = document.getElementById('cloud-sync-characters');
+        if (syncCharsEl) syncCharsEl.checked = c.syncCharacters !== false;
+
+        // 根据 provider 显示对应字段
+        applyCloudProviderUI();
+
         updateLastSyncText(c.lastSyncAt || 0);
     } catch (err) {
         console.warn('[Cloud UI] load failed:', err);
-    }    
-    // 检查是否有自动同步时留下的未解决冲突
+    }
+
+    // 检查未解决冲突
     if (window.electronAPI?.cloudGetUnresolvedConflicts) {
         const uc = await window.electronAPI.cloudGetUnresolvedConflicts();
         if (uc.success && uc.conflicts?.length) {
-            // 提示用户
             const banner = document.getElementById('cloud-action-status');
             if (banner) {
                 banner.textContent = `⚠️ 检测到 ${uc.conflicts.length} 个冲突文件（来自自动同步）。点击「上传到云端」处理。`;
@@ -1792,6 +1809,18 @@ async function loadCloudConfig() {
         }
     }
 }
+
+// 根据 provider 显示对应字段组
+function applyCloudProviderUI() {
+    const provider = document.getElementById('cloud-provider')?.value || 'github-gist';
+    const nutstoreEl = document.getElementById('cloud-fields-nutstore');
+    const gistEl = document.getElementById('cloud-fields-gist');
+    if (nutstoreEl) nutstoreEl.style.display = provider === 'nutstore' ? '' : 'none';
+    if (gistEl) gistEl.style.display = provider === 'github-gist' ? '' : 'none';
+}
+
+// 服务商切换时立即更新显示
+document.getElementById('cloud-provider')?.addEventListener('change', applyCloudProviderUI);
 
 
 
@@ -1815,20 +1844,28 @@ function updateLastSyncText(ts) {
 
 document.getElementById('btn-cloud-save')?.addEventListener('click', async () => {
     const enabled = document.getElementById('cloud-enabled').checked;
-    const webdavUrl = document.getElementById('cloud-webdav-url').value.trim();
-    const username = document.getElementById('cloud-username').value.trim();
-    const appPassword = document.getElementById('cloud-app-password').value;
-    const remotePath = document.getElementById('cloud-remote-path').value.trim() || '/Live2DPet';
-
+    const provider = document.getElementById('cloud-provider').value;
     const autoPush = document.getElementById('cloud-auto-push')?.checked ?? true;
 
-    await window.electronAPI.saveConfig({
-        cloud: { enabled, autoPush, webdavUrl, username, appPassword, remotePath }
-    });
-    // 配置变了，重置 WebDAV 客户端
+    const cloudData = {
+        enabled,
+        provider,
+        autoPush,
+        // 坚果云字段（无论 provider 都保存，切换回来时不丢）
+        webdavUrl: document.getElementById('cloud-webdav-url').value.trim(),
+        username: document.getElementById('cloud-username').value.trim(),
+        appPassword: document.getElementById('cloud-app-password').value,
+        remotePath: document.getElementById('cloud-remote-path').value.trim() || '/Live2DPet',
+        // Gist 字段
+        gistId: document.getElementById('cloud-gist-id').value.trim(),
+        githubToken: document.getElementById('cloud-github-token').value.trim(),
+        syncCharacters: document.getElementById('cloud-sync-characters')?.checked ?? true
+    };
+
+    await window.electronAPI.saveConfig({ cloud: cloudData });
     await window.electronAPI.cloudResetClient();
-    // 通知主进程刷新自动同步状态
     await window.electronAPI.cloudSetAutoPush(enabled && autoPush);
+
     showStatus('cloud-config-status', t('status.saved'), 'success');
 });
 

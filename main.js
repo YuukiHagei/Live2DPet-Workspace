@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 
+const { GistSync } = require('./src/main/gist-sync');
 const { CloudSync } = require('./src/main/cloud-sync');
 const { ReportGenerator } = require('./src/main/report-generator');
 const { DailyBrief } = require('./src/main/daily-brief');
@@ -42,6 +43,13 @@ const configManager = createConfigManager(app);
 let dataStore = null;   // 在 whenReady 里初始化
 const { mt } = createI18nHelper(ctx);
 const basePath = __dirname;
+// 根据配置返回当前活跃的云同步实例
+async function getActiveCloudSync() {
+    const cfg = await configManager.loadConfigFile();
+    const provider = cfg.cloud?.provider || 'github-gist';
+    if (provider === 'github-gist') return ctx.gistSync;
+    return ctx.cloudSync;
+}
 // 内置工具名列表（避免和 MCP 工具重名）
 const BUILTIN_TOOL_NAMES = [
     'read_file', 'write_file', 'list_dir', 'list_dir_tree',
@@ -132,7 +140,8 @@ ipcMain.handle('mcp-reload', async () => {
 
 ipcMain.handle('cloud-test-connection', async () => {
     try {
-        return { success: true, ...(await ctx.cloudSync.testConnection()) };
+        const active = await getActiveCloudSync();
+        return { success: true, ...(await active.testConnection()) };
     } catch (err) {
         return { success: false, error: err.message };
     }
@@ -140,7 +149,8 @@ ipcMain.handle('cloud-test-connection', async () => {
 
 ipcMain.handle('cloud-push', async () => {
     try {
-        return { success: true, result: await ctx.cloudSync.push() };
+        const active = await getActiveCloudSync();
+        return { success: true, result: await active.push() };
     } catch (err) {
         return { success: false, error: err.message };
     }
@@ -148,33 +158,28 @@ ipcMain.handle('cloud-push', async () => {
 
 ipcMain.handle('cloud-pull', async () => {
     try {
-        return { success: true, result: await ctx.cloudSync.pull() };
+        const active = await getActiveCloudSync();
+        return { success: true, result: await active.pull() };
     } catch (err) {
         return { success: false, error: err.message };
     }
 });
 
 ipcMain.handle('cloud-status', async () => {
-    return { success: true, status: ctx.cloudSync.getStatus() };
+    const active = await getActiveCloudSync();
+    return { success: true, status: active.getStatus() };
 });
 
 ipcMain.handle('cloud-reset-client', async () => {
-    ctx.cloudSync.reset();
+    const active = await getActiveCloudSync();
+    if (active.reset) active.reset();
     return { success: true };
-});
-
-ipcMain.handle('cloud-set-auto-push', async (event, enabled) => {
-    try {
-        if (ctx.cloudSync) ctx.cloudSync.setAutoPush(!!enabled);
-        return { success: true };
-    } catch (err) {
-        return { success: false, error: err.message };
-    }
 });
 
 ipcMain.handle('cloud-analyze-conflicts', async () => {
     try {
-        return { success: true, ...(await ctx.cloudSync.analyzeConflicts()) };
+        const active = await getActiveCloudSync();
+        return { success: true, ...(await active.analyzeConflicts()) };
     } catch (err) {
         return { success: false, error: err.message };
     }
@@ -182,19 +187,32 @@ ipcMain.handle('cloud-analyze-conflicts', async () => {
 
 ipcMain.handle('cloud-sync-with-resolutions', async (event, resolutions) => {
     try {
-        return { success: true, result: await ctx.cloudSync.syncWithResolutions(resolutions || {}) };
+        const active = await getActiveCloudSync();
+        return { success: true, result: await active.syncWithResolutions(resolutions || {}) };
     } catch (err) {
         return { success: false, error: err.message };
     }
 });
 
 ipcMain.handle('cloud-get-unresolved-conflicts', async () => {
-    return { success: true, conflicts: ctx.cloudSync.getUnresolvedConflicts() };
+    const active = await getActiveCloudSync();
+    return { success: true, conflicts: active.getUnresolvedConflicts() };
 });
 
 ipcMain.handle('cloud-reset-sync-state', async () => {
     try {
-        await ctx.cloudSync.resetSyncState();
+        const active = await getActiveCloudSync();
+        await active.resetSyncState();
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('cloud-set-auto-push', async (event, enabled) => {
+    try {
+        const active = await getActiveCloudSync();
+        if (active) active.setAutoPush(!!enabled);
         return { success: true };
     } catch (err) {
         return { success: false, error: err.message };
@@ -239,19 +257,29 @@ app.whenReady().then(async () => {
         dataDir,
         dataStore
     });
-
-    // 数据变更 → 触发云同步 debounce
-    dataStore.onChange(() => {
-        if (ctx.cloudSync) ctx.cloudSync.scheduleAutoPush();
+    // Gist 同步（需要 promptsDir 以便同步角色卡）
+    const promptsDir = path.join(app.getPath('userData'), 'prompts');
+    ctx.gistSync = new GistSync({
+        configManager,
+        dataDir,
+        promptsDir
     });
 
-    // 读取配置决定是否启用自动同步
+    // 数据变更 → 触发云同步 debounce
+    dataStore.onChange(async () => {
+        try {
+            const active = await getActiveCloudSync();
+            if (active) active.scheduleAutoPush();
+        } catch {}
+    });
+
     try {
         const cfg = await configManager.loadConfigFile();
         const autoOn = cfg.cloud?.enabled && cfg.cloud?.autoPush !== false;
-        ctx.cloudSync.setAutoPush(autoOn);
+        const active = await getActiveCloudSync();
+        active.setAutoPush(autoOn);
     } catch (e) {
-        console.warn('[CloudSync] init auto push failed:', e.message);
+        console.warn('[Cloud] init auto push failed:', e.message);
     }
     ctx.companionTracker = new CompanionTracker(dataDir);
     // 注册待办/日程 IPC（必须在 dataStore 初始化之后）
@@ -374,12 +402,15 @@ app.on('before-quit', async (e) => {
     if (_quitting) return;
 
     // 如果有待处理的云同步，先 flush 再退出
-    if (ctx.cloudSync?.hasPendingPush()) {
+    let active = null;
+    try { active = await getActiveCloudSync(); } catch {}
+
+    if (active?.hasPendingPush()) {
         e.preventDefault();
         _quitting = true;
         console.log('[App] Flushing pending cloud push before quit...');
         try {
-            await ctx.cloudSync.flushPendingPush();
+            await active.flushPendingPush();
         } catch (err) {
             console.warn('[App] Flush failed:', err.message);
         }

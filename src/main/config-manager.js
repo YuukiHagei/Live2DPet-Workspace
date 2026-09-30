@@ -8,7 +8,7 @@ const path = require('path');
 const { encrypt, decrypt } = require('./crypto-utils');
 
 const CURRENT_CONFIG_VERSION = 1;
-const ENCRYPTED_FIELDS = ['apiKey', 'translation.apiKey', 'enhance.search.customApiKey', 'cloud.appPassword'];
+const ENCRYPTED_FIELDS = ['apiKey', 'translation.apiKey', 'enhance.search.customApiKey', 'cloud.appPassword', 'cloud.githubToken'];
 
 function getDefaultModelConfig() {
     return {
@@ -102,15 +102,21 @@ function getDefaultConfig() {
         },
         cloud: {
             enabled: false,
+            provider: 'github-gist',         // 'nutstore' | 'github-gist'
             autoPush: true,
-            provider: 'nutstore',
+            // 坚果云字段
             webdavUrl: 'https://dav.jianguoyun.com/dav/',
             username: '',
             appPassword: '',
             remotePath: '/Live2DPet',
+            // GitHub Gist 字段
+            gistId: '',
+            githubToken: '',
+            syncCharacters: true,
+            // 状态
             lastSyncAt: 0,
             lastSyncPerFile: {}
-        }
+        },
     };
 }
 
@@ -174,6 +180,7 @@ function createConfigManager(app, options = {}) {
         if (config.translation?.apiKey) config.translation.apiKey = _decrypt(config.translation.apiKey);
         if (config.enhance?.search?.customApiKey) config.enhance.search.customApiKey = _decrypt(config.enhance.search.customApiKey);
         if (config.cloud?.appPassword) config.cloud.appPassword = _decrypt(config.cloud.appPassword);  // ← 新增
+        if (config.cloud?.githubToken) config.cloud.githubToken = _decrypt(config.cloud.githubToken);
     }
 
     function encryptFields(config) {
@@ -181,6 +188,7 @@ function createConfigManager(app, options = {}) {
         if (config.translation?.apiKey) config.translation.apiKey = _encrypt(config.translation.apiKey);
         if (config.enhance?.search?.customApiKey) config.enhance.search.customApiKey = _encrypt(config.enhance.search.customApiKey);
         if (config.cloud?.appPassword) config.cloud.appPassword = _encrypt(config.cloud.appPassword);  // ← 新增
+        if (config.cloud?.githubToken) config.cloud.githubToken = _encrypt(config.cloud.githubToken);
     }
 
     const bundledConfigPath = path.join(basePath, 'config.json');

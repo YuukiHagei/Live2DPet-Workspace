@@ -3,7 +3,6 @@
  * 策略：滑动窗口保留最近原文 + 旧消息压缩为摘要。
  */
 class AgentHistory {
-    static STORAGE_KEY = 'live2dpet_agent_history';
     static MAX_RECENT = 20;
     static SUMMARY_TRIGGER = 30;
 
@@ -12,17 +11,48 @@ class AgentHistory {
         this.summary = '';
         this.recent = [];
         this._summarizing = false;
-        this.load();
     }
 
-    load() {
+    async load() {
         try {
-            const raw = localStorage.getItem(AgentHistory.STORAGE_KEY);
-            if (raw) {
-                const data = JSON.parse(raw);
-                this.summary = data.summary || '';
-                this.recent = Array.isArray(data.recent) ? data.recent : [];
-                console.log('[AgentHistory] loaded:', this.recent.length, 'recent, summary:', this.summary.length, 'chars');
+            // 1. 优先从 JSON 文件读
+            if (window.electronAPI?.agentLoadAgentHistory) {
+                const r = await window.electronAPI.agentLoadAgentHistory();
+                if (r.success && r.data && (r.data.recent?.length > 0 || r.data.summary)) {
+                    this.summary = r.data.summary || '';
+                    this.recent = Array.isArray(r.data.recent) ? r.data.recent : [];
+                    console.log('[AgentHistory] loaded from file:', this.recent.length, 'recent,', this.summary.length, 'chars summary');
+                    return;
+                }
+            }
+
+            // 2. JSON 为空 → 尝试从 localStorage 迁移（只做一次）
+            const migrated = localStorage.getItem('live2dpet_agent_history_migrated');
+            if (!migrated) {
+                const raw = localStorage.getItem('live2dpet_agent_history');
+                if (raw) {
+                    try {
+                        const data = JSON.parse(raw);
+                        this.summary = data.summary || '';
+                        this.recent = Array.isArray(data.recent) ? data.recent : [];
+                        if (this.recent.length > 0 || this.summary) {
+                            if (window.electronAPI?.agentSaveAgentHistory) {
+                                await window.electronAPI.agentSaveAgentHistory({
+                                    summary: this.summary,
+                                    recent: this.recent
+                                });
+                            }
+                            console.log('[AgentHistory] migrated from localStorage:', this.recent.length, 'recent');
+                        }
+                    } catch (e) {
+                        console.warn('[AgentHistory] migration parse failed:', e);
+                    }
+                }
+                localStorage.setItem('live2dpet_agent_history_migrated', '1');
+            }
+
+            if (this.recent.length === 0 && !this.summary) {
+                console.log('[AgentHistory] empty, starting fresh');
             }
         } catch (e) {
             console.warn('[AgentHistory] load failed:', e);
@@ -30,18 +60,16 @@ class AgentHistory {
     }
 
     save() {
-        try {
-            const payload = {
-                summary: this.summary,
-                recent: this.recent
-            };
-            localStorage.setItem(AgentHistory.STORAGE_KEY, JSON.stringify(payload));
-            // ★ 同步到主进程，供历史窗口读取
-            if (window.electronAPI?.syncAgentHistory) {
-                window.electronAPI.syncAgentHistory(payload);
-            }
-        } catch (e) {
-            console.warn('[AgentHistory] save failed:', e);
+        const payload = { summary: this.summary, recent: this.recent };
+        // 持久化到 JSON
+        if (window.electronAPI?.agentSaveAgentHistory) {
+            window.electronAPI.agentSaveAgentHistory(payload).catch(e => {
+                console.warn('[AgentHistory] save failed:', e);
+            });
+        }
+        // 同步到主进程内存，供历史窗口读取
+        if (window.electronAPI?.syncAgentHistory) {
+            window.electronAPI.syncAgentHistory(payload);
         }
     }
 
@@ -59,7 +87,12 @@ class AgentHistory {
     clear() {
         this.summary = '';
         this.recent = [];
-        this.save();
+        if (window.electronAPI?.agentClearAgentHistory) {
+            window.electronAPI.agentClearAgentHistory().catch(() => {});
+        }
+        if (window.electronAPI?.syncAgentHistory) {
+            window.electronAPI.syncAgentHistory({ summary: '', recent: [] });
+        }
         console.log('[AgentHistory] cleared');
     }
 
@@ -117,7 +150,6 @@ class AgentHistory {
  * 每 N 轮对话异步让 AI 更新一次，不打扰用户。
  */
 class UserProfile {
-    static STORAGE_KEY = 'live2dpet_user_profile';
     static UPDATE_EVERY = 5;
 
     constructor(aiClient) {
@@ -126,29 +158,61 @@ class UserProfile {
         this._roundsSinceUpdate = 0;
         this._updating = false;
         this._getRecentMessages = () => [];
-        this.load();
     }
 
-    load() {
+    async load() {
         try {
-            const raw = localStorage.getItem(UserProfile.STORAGE_KEY);
-            if (raw) {
-                this.data = { ...this.data, ...JSON.parse(raw) };
-                console.log('[UserProfile] loaded:', this.getSummaryText().slice(0, 100));
+            // 1. 优先从 JSON 文件读
+            if (window.electronAPI?.agentLoadUserProfile) {
+                const r = await window.electronAPI.agentLoadUserProfile();
+                if (r.success && r.data && Object.keys(r.data).length > 0) {
+                    // 判断是否真有数据（避免全是空字段）
+                    const d = r.data;
+                    const hasData = d.name || d.occupation
+                        || (d.goals?.length) || (d.preferences?.length) || (d.background?.length);
+                    if (hasData) {
+                        this.data = { ...this.data, ...d };
+                        console.log('[UserProfile] loaded from file:', this.getSummaryText().slice(0, 100));
+                        return;
+                    }
+                }
             }
-        } catch (e) { console.warn('[UserProfile] load failed:', e); }
+
+            // 2. JSON 为空 → 尝试从 localStorage 迁移（只做一次）
+            const migrated = localStorage.getItem('live2dpet_user_profile_migrated');
+            if (!migrated) {
+                const raw = localStorage.getItem('live2dpet_user_profile');
+                if (raw) {
+                    try {
+                        const data = JSON.parse(raw);
+                        this.data = { ...this.data, ...data };
+                        if (window.electronAPI?.agentSaveUserProfile) {
+                            await window.electronAPI.agentSaveUserProfile(this.data);
+                        }
+                        console.log('[UserProfile] migrated from localStorage');
+                    } catch (e) { /* ignore */ }
+                }
+                localStorage.setItem('live2dpet_user_profile_migrated', '1');
+            }
+        } catch (e) {
+            console.warn('[UserProfile] load failed:', e);
+        }
     }
 
     save() {
-        try {
-            localStorage.setItem(UserProfile.STORAGE_KEY, JSON.stringify(this.data));
-        } catch (e) { console.warn('[UserProfile] save failed:', e); }
+        if (window.electronAPI?.agentSaveUserProfile) {
+            window.electronAPI.agentSaveUserProfile(this.data).catch(e => {
+                console.warn('[UserProfile] save failed:', e);
+            });
+        }
     }
 
     clear() {
         this.data = { name: '', occupation: '', goals: [], preferences: [], background: [], updatedAt: 0 };
         this._roundsSinceUpdate = 0;
-        this.save();
+        if (window.electronAPI?.agentClearUserProfile) {
+            window.electronAPI.agentClearUserProfile().catch(() => {});
+        }
         console.log('[UserProfile] cleared');
     }
 
@@ -245,67 +309,95 @@ ${lines}
  * 全部本地计算，不调用 AI。
  */
 class ObservationLog {
-    static STORAGE_KEY = 'live2dpet_observations';
     static MAX_OBSERVATIONS = 50;
     static CONTACT_TOP_N = 8;
-    static TOPIC_UPDATE_EVERY = 5;      // 每 N 次观察触发一次话题分析
-    static MAX_TOPICS_PER_CONTACT = 8;  // 每个联系人最多 8 个话题
+    static TOPIC_UPDATE_EVERY = 5;
+    static MAX_TOPICS_PER_CONTACT = 8;
 
     constructor(aiClient) {
         this.aiClient = aiClient || null;
-        this.observations = [];   // [{time, app, title, contact}]
-        this.contacts = {};       // {name: {count, firstSeen, lastSeen, apps, topics}}
+        this.observations = [];
+        this.contacts = {};
         this._topicUpdating = false;
-        this._contactObsCount = {};    // {name: 累计次数}
-        this._lastTopicCount = {};     // {name: 上次触发话题分析时的 count}
-        this.load();
+        this._contactObsCount = {};
+        this._lastTopicCount = {};
     }
 
-    load() {
+    async load() {
         try {
-            const raw = localStorage.getItem(ObservationLog.STORAGE_KEY);
-            if (raw) {
-                const data = JSON.parse(raw);
-                this.observations = Array.isArray(data.observations) ? data.observations : [];
-                this.contacts = data.contacts && typeof data.contacts === 'object' ? data.contacts : {};
-                console.log('[Observation] loaded:', this.observations.length, 'obs,',
-                            Object.keys(this.contacts).length, 'contacts');
+            // 1. 优先从 JSON 文件读
+            if (window.electronAPI?.agentLoadObservations) {
+                const r = await window.electronAPI.agentLoadObservations();
+                if (r.success && r.data) {
+                    this.observations = Array.isArray(r.data.observations) ? r.data.observations : [];
+                    this.contacts = r.data.contacts && typeof r.data.contacts === 'object' ? r.data.contacts : {};
+                    console.log('[Observation] loaded from file:', this.observations.length, 'obs,', Object.keys(this.contacts).length, 'contacts');
+                    // 兼容旧数据
+                    for (const name in this.contacts) {
+                        if (!Array.isArray(this.contacts[name].topics)) {
+                            this.contacts[name].topics = [];
+                        }
+                    }
+                    if (this.observations.length > 0 || Object.keys(this.contacts).length > 0) return;
+                }
             }
-        } catch (e) { console.warn('[Observation] load failed:', e); }
-        // 兼容旧数据：确保每个 contact 有 topics 字段
-        for (const name in this.contacts) {
-            if (!Array.isArray(this.contacts[name].topics)) {
-                this.contacts[name].topics = [];
+
+            // 2. JSON 为空 → 尝试从 localStorage 迁移（只做一次）
+            const migrated = localStorage.getItem('live2dpet_observations_migrated');
+            if (!migrated) {
+                const raw = localStorage.getItem('live2dpet_observations');
+                if (raw) {
+                    try {
+                        const data = JSON.parse(raw);
+                        this.observations = Array.isArray(data.observations) ? data.observations : [];
+                        this.contacts = data.contacts && typeof data.contacts === 'object' ? data.contacts : {};
+                        for (const name in this.contacts) {
+                            if (!Array.isArray(this.contacts[name].topics)) {
+                                this.contacts[name].topics = [];
+                            }
+                        }
+                        if (this.observations.length > 0 || Object.keys(this.contacts).length > 0) {
+                            if (window.electronAPI?.agentSaveObservations) {
+                                await window.electronAPI.agentSaveObservations({
+                                    observations: this.observations,
+                                    contacts: this.contacts
+                                });
+                            }
+                            console.log('[Observation] migrated from localStorage');
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+                localStorage.setItem('live2dpet_observations_migrated', '1');
             }
+        } catch (e) {
+            console.warn('[Observation] load failed:', e);
         }
     }
 
     save() {
-        try {
-            const payload = {
-                observations: this.observations,
-                contacts: this.contacts
-            };
-            localStorage.setItem(ObservationLog.STORAGE_KEY, JSON.stringify(payload));
-            // ★ 同步到主进程，供观察窗口读取
-            if (window.electronAPI?.syncObservation) {
-                window.electronAPI.syncObservation(payload);
-            }
-        } catch (e) { console.warn('[Observation] save failed:', e); }
+        const payload = { observations: this.observations, contacts: this.contacts };
+        if (window.electronAPI?.agentSaveObservations) {
+            window.electronAPI.agentSaveObservations(payload).catch(e => {
+                console.warn('[Observation] save failed:', e);
+            });
+        }
+        if (window.electronAPI?.syncObservation) {
+            window.electronAPI.syncObservation(payload);
+        }
     }
 
     clear() {
         this.observations = [];
         this.contacts = {};
-        this.save();
+        if (window.electronAPI?.agentClearObservations) {
+            window.electronAPI.agentClearObservations().catch(() => {});
+        }
+        if (window.electronAPI?.syncObservation) {
+            window.electronAPI.syncObservation({ observations: [], contacts: {} });
+        }
         console.log('[Observation] cleared');
     }
 
-    /**
-     * 记录一次观察
-     * @param {string} appName - 窗口 owner 名字（如 "WeChat"）
-     * @param {string} windowTitle - 完整窗口标题（如 "张三 - 微信"）
-     */
     record(appName, windowTitle) {
         if (!windowTitle) return null;
         const contact = this._extractContact(appName, windowTitle);
@@ -326,13 +418,9 @@ class ObservationLog {
             this._contactObsCount[contact]++;
         }
         this.save();
-        return contact;   // ★ 返回联系人名字
+        return contact;
     }
 
-        /**
-     * 从 owner name（进程名）和 title（窗口标题）提取联系人名字。
-     * 返回 null 表示不是聊天窗口。
-     */
     _extractContact(ownerName, title) {
         if (!title) return null;
         const app = (ownerName || '').toLowerCase();
@@ -340,7 +428,6 @@ class ObservationLog {
         if (!t) return null;
         if (t.length > 30) return null;
 
-        // ========== 微信 ==========
         if (app.includes('wechat') || app.includes('weixin')) {
             const mainTitles = ['微信', 'wechat', 'weixin'];
             const skipTitles = [
@@ -352,11 +439,9 @@ class ObservationLog {
             const tl = t.toLowerCase();
             if (mainTitles.some(m => tl === m.toLowerCase())) return null;
             if (skipTitles.some(s => t === s)) return null;
-            // 去掉 "(3)" 未读计数后缀
             return t.replace(/\s*\(\d+\)\s*$/, '').trim() || null;
         }
 
-        // ========== QQ ==========
         if (app.includes('qq') && !app.includes('qqmusic') && !app.includes('qqbrowser') && !app.includes('qqmail')) {
             const mainTitles = ['qq', '腾讯qq'];
             const skipTitles = ['qq邮箱', '搜索', '设置'];
@@ -366,25 +451,21 @@ class ObservationLog {
             return t.replace(/\s*\(\d+\)\s*$/, '').trim() || null;
         }
 
-        // ========== 钉钉 ==========
         if (app.includes('dingtalk')) {
             if (t === '钉钉' || t === 'DingTalk' || t === '搜索') return null;
             return t.replace(/\s*\(\d+\)\s*$/, '').trim() || null;
         }
 
-        // ========== 飞书 ==========
         if (app.includes('feishu') || app.includes('lark')) {
             if (t === '飞书' || t === 'Feishu' || t === 'Lark' || t === '搜索') return null;
             return t.replace(/\s*\(\d+\)\s*$/, '').trim() || null;
         }
 
-        // ========== Telegram ==========
         if (app.includes('telegram')) {
             if (t.toLowerCase() === 'telegram') return null;
             return t.replace(/\s*\(\d+\)\s*$/, '').trim() || null;
         }
 
-        // ========== Discord ==========
         if (app.includes('discord')) {
             if (t.toLowerCase() === 'discord') return null;
             return t.replace(/\s*\(\d+\)\s*$/, '').trim() || null;
@@ -411,11 +492,7 @@ class ObservationLog {
             c.apps.push(appName);
         }
     }
-    /**
-     * 可能触发话题分析。由 DesktopPetSystem 在截图准备好后调用。
-     * @param {string} contact - 联系人名字
-     * @param {string} screenshotBase64 - 当前截图（不带 data URI 前缀）
-     */
+
     maybeUpdateTopics(contact, screenshotBase64) {
         if (!contact || !screenshotBase64) return;
         if (this._topicUpdating) return;
@@ -485,13 +562,9 @@ ${existing.length > 0 ? existing.join('、') : '(暂无)'}
         return tryParse(text) || tryParse((text.match(/\[[\s\S]*\]/) || [])[0]);
     }
 
-    /**
-     * 构建注入 system prompt 的文本块
-     */
     buildPromptBlock() {
         const parts = [];
 
-        // 常联系的人（top N）
         const sorted = Object.entries(this.contacts)
             .sort((a, b) => b[1].count - a[1].count)
             .slice(0, ObservationLog.CONTACT_TOP_N);
@@ -510,7 +583,6 @@ ${existing.length > 0 ? existing.join('、') : '(暂无)'}
             parts.push('【常联系的人】\n' + lines.join('\n'));
         }
 
-        // 最近 5 条聊天观察
         const recent = this.observations.slice(-20).reverse()
             .filter(o => o.contact).slice(0, 5);
         if (recent.length > 0) {
@@ -590,11 +662,14 @@ class DesktopPetSystem {
         this.aiClient = new AIChatClient();
         await this.aiClient.init();
         this.agentHistory = new AgentHistory(this.aiClient);
+        await this.agentHistory.load();
         this.userProfile = new UserProfile(this.aiClient);
+        await this.userProfile.load();
         this.userProfile.setRecentMessagesGetter(() => this.chatHistory);
         await this._loadChatMemory();
         this.observationLog = new ObservationLog(this.aiClient);
-        this.observationLog.save();   // ★ 立即把 localStorage 里的数据同步到主进程
+        await this.observationLog.load();
+        this.observationLog.save();   // ★ 把数据同步到主进程，供观察窗口读取
         // 陪伴天数
         this.companionStats = null;
         if (window.electronAPI?.getCompanionStats) {

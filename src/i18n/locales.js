@@ -307,6 +307,13 @@ const I18N = {
     'cloud.autoPush': 'Auto-upload after data changes (5s delay)',
     'cloud.resetState': '🔧 Reset Sync State (fix false conflicts)',
     'cloud.resetStateHint': 'If you keep seeing "conflicts" but only changed locally, click this to clear sync records. Next sync will be treated as first-time.',
+    'cloud.provider': 'Provider',
+    'cloud.gistId': 'Gist ID',
+    'cloud.gistIdHint': 'In https://gist.github.com/yourname/<b>this-is-the-id</b>, the last URL segment is the Gist ID.',
+    'cloud.githubToken': 'GitHub Personal Access Token',
+    'cloud.githubTokenHint': 'How to generate: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → check gist scope.',
+    'cloud.syncCharacters': 'Sync Character Cards',
+    'cloud.syncCharactersHint': 'When enabled, your custom character cards will be synced to Gist for mobile access.',
   },
   zh: {
     'lang.label': '语言',
@@ -612,6 +619,13 @@ const I18N = {
     'cloud.autoPush': '数据变更后自动上传（延迟 5 秒）',
     'cloud.resetState': '🔧 重置同步状态（修复假冲突）',
     'cloud.resetStateHint': '如果反复提示"冲突"但你只改了本地，点这个按钮清空同步记录。下次同步会当作首次，不会误判。',    
+    'cloud.provider': '服务商',
+    'cloud.gistId': 'Gist ID',
+    'cloud.gistIdHint': '在 https://gist.github.com/你的用户名/<b>这串就是ID</b> 中，URL 最后一段即为 Gist ID。',
+    'cloud.githubToken': 'GitHub Personal Access Token',
+    'cloud.githubTokenHint': '生成方法：GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → 勾选 gist 权限即可。',
+    'cloud.syncCharacters': '同步角色卡',
+    'cloud.syncCharactersHint': '开启后你自定义的角色卡会同步到 Gist，手机端可以读取。',
   },
   ja: {
     'lang.label': '言語',
@@ -917,6 +931,13 @@ const I18N = {
     'cloud.autoPush': 'データ変更後に自動アップロード（5秒遅延）',
     'cloud.resetState': '🔧 同期状態をリセット（偽の競合を修正）',
     'cloud.resetStateHint': 'ローカルしか変更していないのに「競合」が繰り返し表示される場合、このボタンで同期記録をクリアしてください。',
+    'cloud.provider': 'プロバイダ',
+    'cloud.gistId': 'Gist ID',
+    'cloud.gistIdHint': 'https://gist.github.com/ユーザー名/<b>これがID</b> の最後のセグメントが Gist ID です。',
+    'cloud.githubToken': 'GitHub Personal Access Token',
+    'cloud.githubTokenHint': '生成方法：GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → gist 権限をチェック。',
+    'cloud.syncCharacters': 'キャラクターカードを同期',
+    'cloud.syncCharactersHint': '有効にすると、カスタムキャラクターカードが Gist に同期され、モバイルからもアクセス可能になります。',
   }
 };
 

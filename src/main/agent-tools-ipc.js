@@ -218,6 +218,90 @@ function registerAgentToolsIPC(ctx, ipcMain, deps) {
             return { success: false, error: err.message };
         }
     });
+
+    // ========== Agent 历史 ==========
+
+    ipcMain.handle('agent-load-agent-history', async () => {
+        try {
+            return { success: true, data: dataStore.loadAgentHistory() };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('agent-save-agent-history', async (event, data) => {
+        try {
+            dataStore.saveAgentHistory(data || {});
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('agent-clear-agent-history', async () => {
+        try {
+            dataStore.clearAgentHistory();
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ========== 用户画像 ==========
+
+    ipcMain.handle('agent-load-user-profile', async () => {
+        try {
+            return { success: true, data: dataStore.loadUserProfile() };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('agent-save-user-profile', async (event, data) => {
+        try {
+            dataStore.saveUserProfile(data || {});
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('agent-clear-user-profile', async () => {
+        try {
+            dataStore.clearUserProfile();
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ========== 观察日志 ==========
+
+    ipcMain.handle('agent-load-observations', async () => {
+        try {
+            return { success: true, data: dataStore.loadObservations() };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('agent-save-observations', async (event, data) => {
+        try {
+            dataStore.saveObservations(data || {});
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('agent-clear-observations', async () => {
+        try {
+            dataStore.clearObservations();
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
 }
 
 module.exports = { registerAgentToolsIPC };

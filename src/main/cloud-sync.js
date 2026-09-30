@@ -7,7 +7,8 @@ const { createClient } = require('webdav');
 
 const SYNC_FILES = [
     'todos.json', 'schedules.json', 'reminders.json', 'flashcards.json',
-    'chat-memory.json', 'companion.json', 'daily-brief.json', 'report-state.json'
+    'chat-memory.json', 'agent-history.json', 'user-profile.json', 'observations.json',
+    'companion.json', 'daily-brief.json', 'report-state.json'
 ];
 
 

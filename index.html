@@ -598,17 +598,49 @@
 
     <div class="card">
         <h2 data-i18n="cloud.auth">账号配置</h2>
-        <label data-i18n="cloud.webdavUrl">WebDAV 地址</label>
-        <input type="text" id="cloud-webdav-url" placeholder="https://dav.jianguoyun.com/dav/">
-        <label data-i18n="cloud.username">用户名（坚果云注册邮箱）</label>
-        <input type="text" id="cloud-username" placeholder="your@email.com">
-        <label data-i18n="cloud.appPassword">应用密码</label>
-        <input type="password" id="cloud-app-password" placeholder="在坚果云 → 安全选项 → 第三方应用管理中生成">
-        <p style="font-size:11px;color:#888;margin-top:4px;" data-i18n="cloud.appPasswordHint">
-            注意：不要填坚果云登录密码，必须使用"应用密码"。生成方式：坚果云网页版 → 账户信息 → 安全选项 → 第三方应用管理 → 添加应用。
-        </p>
-        <label data-i18n="cloud.remotePath">远程目录</label>
-        <input type="text" id="cloud-remote-path" placeholder="/Live2DPet">
+
+        <label data-i18n="cloud.provider">服务商</label>
+        <select id="cloud-provider">
+            <option value="github-gist">GitHub Gist（推荐）</option>
+            <option value="nutstore">坚果云 WebDAV</option>
+        </select>
+
+        <!-- ========== 坚果云字段 ========== -->
+        <div id="cloud-fields-nutstore" style="display:none">
+            <label data-i18n="cloud.webdavUrl">WebDAV 地址</label>
+            <input type="text" id="cloud-webdav-url" placeholder="https://dav.jianguoyun.com/dav/">
+            <label data-i18n="cloud.username">用户名（坚果云注册邮箱）</label>
+            <input type="text" id="cloud-username" placeholder="your@email.com">
+            <label data-i18n="cloud.appPassword">应用密码</label>
+            <input type="password" id="cloud-app-password" placeholder="在坚果云 → 安全选项 → 第三方应用管理中生成">
+            <p style="font-size:11px;color:#888;margin-top:4px;" data-i18n="cloud.appPasswordHint">
+                注意：不要填坚果云登录密码，必须使用"应用密码"。
+            </p>
+            <label data-i18n="cloud.remotePath">远程目录</label>
+            <input type="text" id="cloud-remote-path" placeholder="/Live2DPet">
+        </div>
+
+        <!-- ========== GitHub Gist 字段 ========== -->
+        <div id="cloud-fields-gist" style="display:none">
+            <label data-i18n="cloud.gistId">Gist ID</label>
+            <input type="text" id="cloud-gist-id" placeholder="从 gist.github.com URL 复制">
+            <p style="font-size:11px;color:#888;margin-top:4px;" data-i18n="cloud.gistIdHint">
+                在 https://gist.github.com/你的用户名/<b>这串就是ID</b> 中，URL 最后一段即为 Gist ID。
+            </p>
+            <label data-i18n="cloud.githubToken">GitHub Personal Access Token</label>
+            <input type="password" id="cloud-github-token" placeholder="ghp_...">
+            <p style="font-size:11px;color:#888;margin-top:4px;" data-i18n="cloud.githubTokenHint">
+                生成方法：GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → 勾选 gist 权限即可。
+            </p>
+            <label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;">
+                <input type="checkbox" id="cloud-sync-characters" checked>
+                <span data-i18n="cloud.syncCharacters">同步角色卡</span>
+            </label>
+            <p style="font-size:11px;color:#888;margin-top:4px;" data-i18n="cloud.syncCharactersHint">
+                开启后你自定义的角色卡会同步到 Gist，手机端可以读取。
+            </p>
+        </div>
+
         <div class="btn-row">
             <button class="btn btn-primary" id="btn-cloud-save" data-i18n="btn.save">Save</button>
             <button class="btn btn-secondary" id="btn-cloud-test" data-i18n="cloud.test">测试连接</button>

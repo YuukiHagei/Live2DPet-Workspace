@@ -47,11 +47,17 @@ class DataStore {
         this.remindersFile = path.join(dataDir, 'reminders.json');
         this.flashcardsFile = path.join(dataDir, 'flashcards.json');
         this.chatMemoryFile = path.join(dataDir, 'chat-memory.json');
+        this.agentHistoryFile = path.join(dataDir, 'agent-history.json');
+        this.userProfileFile = path.join(dataDir, 'user-profile.json');
+        this.observationsFile = path.join(dataDir, 'observations.json');
         this.todos = [];
         this.schedules = [];
         this.reminders = [];
         this.flashcards = [];
         this.chatMemory = [];
+        this.agentHistory = { summary: '', recent: [] };
+        this.userProfile = { name: '', occupation: '', goals: [], preferences: [], background: [], updatedAt: 0 };
+        this.observations = { observations: [], contacts: {} };
         this._dirty = false;
         this._flushTimer = null;
         this._changeListeners = [];
@@ -80,6 +86,24 @@ class DataStore {
                 const data = JSON.parse(fs.readFileSync(this.chatMemoryFile, 'utf8'));
                 this.chatMemory = Array.isArray(data.messages) ? data.messages : [];
             }
+            if (fs.existsSync(this.agentHistoryFile)) {
+                const data = JSON.parse(fs.readFileSync(this.agentHistoryFile, 'utf8'));
+                this.agentHistory = {
+                    summary: data.summary || '',
+                    recent: Array.isArray(data.recent) ? data.recent : []
+                };
+            }
+            if (fs.existsSync(this.userProfileFile)) {
+                const data = JSON.parse(fs.readFileSync(this.userProfileFile, 'utf8'));
+                this.userProfile = { ...this.userProfile, ...data };
+            }
+            if (fs.existsSync(this.observationsFile)) {
+                const data = JSON.parse(fs.readFileSync(this.observationsFile, 'utf8'));
+                this.observations = {
+                    observations: Array.isArray(data.observations) ? data.observations : [],
+                    contacts: data.contacts && typeof data.contacts === 'object' ? data.contacts : {}
+                };
+            }
             console.log(`[DataStore] loaded: ${this.todos.length} todos, ${this.schedules.length} schedules, ${this.reminders.length} reminders, ${this.flashcards.length} cards`);
         } catch (err) {
             console.error('[DataStore] load failed:', err.message);
@@ -107,6 +131,9 @@ class DataStore {
             fs.writeFileSync(this.remindersFile, JSON.stringify({ reminders: this.reminders }, null, 2));
             fs.writeFileSync(this.flashcardsFile, JSON.stringify({ flashcards: this.flashcards }, null, 2));
             fs.writeFileSync(this.chatMemoryFile, JSON.stringify({ messages: this.chatMemory }, null, 2));
+            fs.writeFileSync(this.agentHistoryFile, JSON.stringify(this.agentHistory, null, 2));
+            fs.writeFileSync(this.userProfileFile, JSON.stringify(this.userProfile, null, 2));
+            fs.writeFileSync(this.observationsFile, JSON.stringify(this.observations, null, 2));
             this._dirty = false;
             // 通知监听者（用于云同步等副作用）
             for (const fn of this._changeListeners) {
@@ -363,13 +390,16 @@ class DataStore {
         const r = this.reminders.find(x => x.id === id);
         if (!r) return null;
         r.triggeredAt = Date.now();
+        const now = Date.now();
         if (r.repeat === 'daily') {
-            r.remindAt += 86400000;
+            // 一直加到未来，避免延迟触发导致跳过一天
+            do { r.remindAt += 86400000; } while (r.remindAt <= now);
         } else if (r.repeat === 'weekly') {
-            r.remindAt += 7 * 86400000;
+            do { r.remindAt += 7 * 86400000; } while (r.remindAt <= now);
         } else {
             r.done = true;
         }
+        r.updatedAt = now;   // 云同步用
         this._markDirty();
         return r;
     }
@@ -718,6 +748,67 @@ class DataStore {
         this.chatMemory = [];
         this._markDirty();
     }
+
+    // ========== Agent 历史 ==========
+
+    loadAgentHistory() {
+        return this.agentHistory;
+    }
+
+    saveAgentHistory(data) {
+        if (!data || typeof data !== 'object') throw new Error('data 必须是对象');
+        this.agentHistory = {
+            summary: typeof data.summary === 'string' ? data.summary : '',
+            recent: Array.isArray(data.recent) ? data.recent : []
+        };
+        this._markDirty();
+        return this.agentHistory;
+    }
+
+    clearAgentHistory() {
+        this.agentHistory = { summary: '', recent: [] };
+        this._markDirty();
+    }
+
+    // ========== 用户画像 ==========
+
+    loadUserProfile() {
+        return this.userProfile;
+    }
+
+    saveUserProfile(data) {
+        if (!data || typeof data !== 'object') throw new Error('data 必须是对象');
+        this.userProfile = { ...this.userProfile, ...data };
+        this._markDirty();
+        return this.userProfile;
+    }
+
+    clearUserProfile() {
+        this.userProfile = { name: '', occupation: '', goals: [], preferences: [], background: [], updatedAt: 0 };
+        this._markDirty();
+    }
+
+    // ========== 观察日志 ==========
+
+    loadObservations() {
+        return this.observations;
+    }
+
+    saveObservations(data) {
+        if (!data || typeof data !== 'object') throw new Error('data 必须是对象');
+        this.observations = {
+            observations: Array.isArray(data.observations) ? data.observations : [],
+            contacts: data.contacts && typeof data.contacts === 'object' ? data.contacts : {}
+        };
+        this._markDirty();
+        return this.observations;
+    }
+
+    clearObservations() {
+        this.observations = { observations: [], contacts: {} };
+        this._markDirty();
+    }
+
 
     getStats() {
         return {
