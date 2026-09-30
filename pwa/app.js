@@ -812,7 +812,7 @@
 
         // 3. 构建请求
         const character = PwaChat.pickCharacter(gistData?.characters);
-        const sysPrompt = PwaChat.buildSystemPrompt(character);
+        const sysPrompt = PwaChat.buildSystemPrompt(character, gistData);
 
         const messages = [
             { role: 'system', content: sysPrompt },
