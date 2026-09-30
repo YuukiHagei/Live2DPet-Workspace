@@ -162,6 +162,7 @@
         $pageTitle.textContent = 'Live2DPet · ' + (titles[activeTab] || '');
 
         if (activeTab === 'settings') return renderSettings();
+        if (activeTab === 'chat') return renderChat();
         if (!parsed) {
             $content.innerHTML = '<div class="empty"><div class="emoji">⏳</div>加载中...</div>';
             return;
@@ -685,6 +686,153 @@
             await refreshData();
         } catch (err) {
             $content.innerHTML = `<div class="empty"><div class="emoji">⚠️</div>加载失败：${escapeHtml(err.message)}<br><br><button class="btn-secondary" style="width:auto;padding:10px 24px;margin-top:12px;border:none;border-radius:8px;cursor:pointer;" onclick="location.reload()">重试</button></div>`;
+        }
+    }
+
+    // ============================================================
+    // AI 聊天
+    // ============================================================
+
+    let chatSending = false;
+
+    function renderChat() {
+        const aiCfg = PwaChat.loadAIConfig();
+        if (!aiCfg) {
+            renderChatSetup();
+            return;
+        }
+
+        const history = PwaChat.loadHistory();
+        const character = PwaChat.pickCharacter(gistData?.characters);
+        const charName = character?.name || '助手';
+
+        // 生成消息 HTML
+        const messagesHtml = history.length === 0
+            ? `<div class="empty" style="padding:30px 20px;">
+                 <div class="emoji">💬</div>
+                 和 ${escapeHtml(charName)} 聊天
+               </div>`
+            : history.map(m => {
+                const isUser = m.role === 'user';
+                return `<div class="msg ${isUser ? 'user' : 'ai'}">
+                    <div class="msg-bubble">${escapeHtml(m.content).replace(/\n/g, '<br>')}</div>
+                </div>`;
+              }).join('');
+
+        $content.innerHTML = `
+            <div class="chat-container">
+                <div class="chat-messages" id="chat-messages">
+                    ${messagesHtml}
+                    <div id="chat-thinking" style="display:none" class="msg ai">
+                        <div class="msg-bubble"><span class="typing">···</span></div>
+                    </div>
+                </div>
+                <div class="chat-input-bar">
+                    <input type="text" id="chat-input" placeholder="说点什么..." autocomplete="off">
+                    <button id="chat-send" class="chat-send-btn">➤</button>
+                </div>
+            </div>
+        `;
+
+        // 滚动到底部
+        const msgContainer = document.getElementById('chat-messages');
+        if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+
+        // 绑定事件
+        const input = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('chat-send');
+
+        const doSend = async () => {
+            const text = input.value.trim();
+            if (!text || chatSending) return;
+            input.value = '';
+            await sendChatMessage(text);
+        };
+
+        sendBtn.onclick = doSend;
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                doSend();
+            }
+        });
+    }
+
+    function renderChatSetup() {
+        $content.innerHTML = `
+            <div class="settings-section">
+                <h2>配置 AI 聊天</h2>
+                <p>使用 OpenAI 兼容的 API。填写后保存在本机，不会上传。</p>
+                <label>API 地址</label>
+                <input type="text" id="ai-baseurl" placeholder="https://api.deepseek.com" value="">
+                <label>API Key</label>
+                <input type="password" id="ai-apikey" placeholder="sk-...">
+                <label>模型名称</label>
+                <input type="text" id="ai-model" placeholder="deepseek-chat">
+                <div style="margin-top:14px;">
+                    <button class="btn-secondary" id="ai-save-btn">保存并开始聊天</button>
+                </div>
+                <div id="ai-setup-status" class="status-bar"></div>
+            </div>
+        `;
+
+        document.getElementById('ai-save-btn').onclick = () => {
+            const baseURL = document.getElementById('ai-baseurl').value.trim();
+            const apiKey = document.getElementById('ai-apikey').value.trim();
+            const modelName = document.getElementById('ai-model').value.trim();
+            const statusEl = document.getElementById('ai-setup-status');
+            if (!baseURL || !apiKey || !modelName) {
+                statusEl.textContent = '请填写全部字段';
+                statusEl.className = 'status-bar show error';
+                return;
+            }
+            PwaChat.saveAIConfig({ baseURL, apiKey, modelName });
+            renderChat();
+        };
+    }
+
+    async function sendChatMessage(text) {
+        if (chatSending) return;
+        chatSending = true;
+
+        const aiCfg = PwaChat.loadAIConfig();
+        if (!aiCfg) { chatSending = false; return; }
+
+        // 1. 追加用户消息
+        let history = PwaChat.loadHistory();
+        history.push({ role: 'user', content: text, ts: Date.now() });
+        PwaChat.saveHistory(history);
+        renderChat();
+
+        // 2. 显示"思考中"
+        const thinking = document.getElementById('chat-thinking');
+        if (thinking) thinking.style.display = '';
+        const msgContainer = document.getElementById('chat-messages');
+        if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+
+        // 3. 构建请求
+        const character = PwaChat.pickCharacter(gistData?.characters);
+        const sysPrompt = PwaChat.buildSystemPrompt(character);
+
+        const messages = [
+            { role: 'system', content: sysPrompt },
+            ...history.slice(-10).map(m => ({ role: m.role, content: m.content }))
+        ];
+
+        try {
+            const reply = await PwaChat.callAI(messages, aiCfg);
+            if (reply) {
+                history = PwaChat.loadHistory();
+                history.push({ role: 'assistant', content: reply, ts: Date.now() });
+                PwaChat.saveHistory(history);
+            }
+        } catch (err) {
+            history = PwaChat.loadHistory();
+            history.push({ role: 'assistant', content: '⚠️ 出错了：' + err.message, ts: Date.now() });
+            PwaChat.saveHistory(history);
+        } finally {
+            chatSending = false;
+            renderChat();
         }
     }
 
