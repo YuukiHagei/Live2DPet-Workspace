@@ -13,60 +13,52 @@
     <title>Live2DPet Workspace</title>
 </head>
 <body>
-    <!-- ========== 首次配置面板 ========== -->
+    <!-- 首次配置 -->
     <div id="setup-screen" class="screen">
         <div class="setup-box">
             <h1>Live2DPet Workspace</h1>
             <p class="subtitle">连接到 GitHub Gist 以同步数据</p>
-
             <label>Gist ID</label>
             <input type="text" id="input-gist-id" placeholder="从 gist.github.com URL 复制" autocomplete="off" autocapitalize="off" autocorrect="off">
-
             <label>GitHub Token</label>
             <input type="password" id="input-github-token" placeholder="ghp_..." autocomplete="off" autocapitalize="off" autocorrect="off">
-
             <button id="btn-connect" class="btn-primary">连接</button>
-
             <div id="setup-status" class="status-bar"></div>
-
             <details class="hint-box">
                 <summary>怎么获取？</summary>
                 <p><strong>Gist ID</strong>：打开你的私有 Gist，URL 是 <code>gist.github.com/用户名/<b>这串就是ID</b></code>。</p>
-                <p><strong>Token</strong>：GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → 勾选 <code>gist</code> 权限 → 生成。</p>
+                <p><strong>Token</strong>：GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → 勾选 <code>gist</code> 权限。</p>
             </details>
         </div>
     </div>
 
-    <!-- ========== 主界面 ========== -->
+    <!-- 主界面 -->
     <div id="main-screen" class="screen" style="display:none">
         <header class="topbar">
-            <h1>Live2DPet</h1>
-            <button id="btn-refresh" class="icon-btn" title="刷新">⟳</button>
+            <h1 id="page-title">Live2DPet</h1>
+            <div class="topbar-actions">
+                <button id="btn-add" class="icon-btn" title="新建" style="display:none">+</button>
+                <button id="btn-refresh" class="icon-btn" title="刷新">⟳</button>
+            </div>
         </header>
 
-        <main class="content" id="content">
-            <!-- 由 JS 填充 -->
-        </main>
+        <main class="content" id="content"></main>
 
         <nav class="tabbar">
-            <button class="tab active" data-tab="todos">
-                <span class="tab-icon">✅</span>
-                <span class="tab-label">待办</span>
-            </button>
-            <button class="tab" data-tab="schedules">
-                <span class="tab-icon">📅</span>
-                <span class="tab-label">日程</span>
-            </button>
-            <button class="tab" data-tab="flashcards">
-                <span class="tab-icon">📇</span>
-                <span class="tab-label">卡片</span>
-            </button>
-            <button class="tab" data-tab="settings">
-                <span class="tab-icon">⚙️</span>
-                <span class="tab-label">设置</span>
-            </button>
+            <button class="tab active" data-tab="todos"><span class="tab-icon">✅</span><span class="tab-label">待办</span></button>
+            <button class="tab" data-tab="schedules"><span class="tab-icon">📅</span><span class="tab-label">日程</span></button>
+            <button class="tab" data-tab="flashcards"><span class="tab-icon">📇</span><span class="tab-label">卡片</span></button>
+            <button class="tab" data-tab="settings"><span class="tab-icon">⚙️</span><span class="tab-label">设置</span></button>
         </nav>
     </div>
+
+    <!-- 模态框（Bottom Sheet） -->
+    <div id="modal-mask" class="modal-mask">
+        <div id="modal" class="modal"></div>
+    </div>
+
+    <!-- 全局 toast -->
+    <div id="toast" class="toast"></div>
 
     <script src="gist.js"></script>
     <script src="app.js"></script>
