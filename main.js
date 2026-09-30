@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 
+const { createStartupSync } = require('./src/main/startup-sync');
 const { GistSync } = require('./src/main/gist-sync');
 const { CloudSync } = require('./src/main/cloud-sync');
 const { ReportGenerator } = require('./src/main/report-generator');
@@ -386,6 +387,20 @@ app.whenReady().then(async () => {
     } catch (err) {
         console.error('[TTS] Init failed:', err.message);
     }
+
+    // 启动后延迟 8 秒静默同步一次
+    setTimeout(async () => {
+        try {
+            const startupSync = createStartupSync({
+                getActiveCloudSync,
+                configManager
+            });
+            const result = await startupSync.run();
+            console.log('[StartupSync] result:', JSON.stringify(result));
+        } catch (err) {
+            console.warn('[StartupSync] failed:', err.message);
+        }
+    }, 8000);
 
     // ★ 再创建窗口（此时 TTS 已就绪）
     createSettingsWindow();
