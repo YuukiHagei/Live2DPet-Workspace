@@ -70,6 +70,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     mcpGetStatus: () => ipcRenderer.invoke('mcp-get-status'),
     mcpReload: () => ipcRenderer.invoke('mcp-reload'),
     mcpTestServer: (config) => ipcRenderer.invoke('mcp-test-server', config),
+    // 倒计时 / 正计时
+    timerAdd: (args) => ipcRenderer.invoke('timer-add', args),
+    timerList: () => ipcRenderer.invoke('timer-list'),
+    timerPause: (id) => ipcRenderer.invoke('timer-pause', id),
+    timerResume: (id) => ipcRenderer.invoke('timer-resume', id),
+    timerRestart: (id, newDurationMs) => ipcRenderer.invoke('timer-restart', id, newDurationMs),
+    timerStop: (id) => ipcRenderer.invoke('timer-stop', id),
+    timerUpdate: (args) => ipcRenderer.invoke('timer-update', args),
+    timerDelete: (id) => ipcRenderer.invoke('timer-delete', id),
+    openTimer: () => ipcRenderer.invoke('open-timer'),
+    openTimerBubble: () => ipcRenderer.invoke('open-timer-bubble'),
+    timerBubbleGetPos: () => ipcRenderer.invoke('timer-bubble-get-pos'),
+    timerBubbleSetPos: (x, y) => ipcRenderer.invoke('timer-bubble-set-pos', x, y),
+    timerBubbleSavePos: () => ipcRenderer.invoke('timer-bubble-save-pos'),
+    closeTimerBubble: () => ipcRenderer.invoke('close-timer-bubble'),
+    resizeTimerBubble: (h) => ipcRenderer.invoke('resize-timer-bubble', h),
+    onTimerCompleted: (cb) => ipcRenderer.on('timer-completed', (e, data) => {
+        if (data && data.timer) cb(data.timer, data.pomodoroTransition || null);
+        else cb(data, null);
+    }),
+    timerAddPomodoro: (args) => ipcRenderer.invoke('timer-add-pomodoro', args),
+    onTimerUpdated: (cb) => ipcRenderer.on('timer-updated', () => cb()),
+    registerPetSystem: () => ipcRenderer.send('pet-system-ready'),
+    openUserProfile: () => ipcRenderer.invoke('open-user-profile'),
+    onUserProfileUpdated: (cb) => ipcRenderer.on('user-profile-updated', () => cb()),
     // 每日简报
     briefGetMorningContext: () => ipcRenderer.invoke('brief-get-morning-context'),
     briefTrigger: (type) => ipcRenderer.invoke('brief-trigger', type),

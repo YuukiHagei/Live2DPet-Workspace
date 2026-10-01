@@ -8,6 +8,7 @@ const { createClient } = require('webdav');
 const SYNC_FILES = [
     'todos.json', 'schedules.json', 'reminders.json', 'flashcards.json',
     'chat-memory.json', 'agent-history.json', 'user-profile.json', 'observations.json',
+    'timers.json',
     'companion.json', 'daily-brief.json', 'report-state.json'
 ];
 
@@ -22,6 +23,34 @@ const FILE_KEYS = {
     'flashcards.json': { arrayKey: 'flashcards', idField: 'id' },
     'chat-memory.json':{ arrayKey: 'messages',   idField: null, special: 'chatMemory' }
 };
+
+/**
+ * 判断一个 JSON 文件里数组是否为空
+ * 返回 'empty' | 'nonempty' | 'unknown'
+ */
+function arrayFillState(content) {
+    if (!content || typeof content !== 'string') return 'unknown';
+    try {
+        const obj = JSON.parse(content);
+        for (const key of ['todos', 'schedules', 'reminders', 'flashcards', 'messages', 'observations']) {
+            if (Array.isArray(obj[key])) {
+                return obj[key].length === 0 ? 'empty' : 'nonempty';
+            }
+        }
+    } catch {}
+    return 'unknown';
+}
+
+/**
+ * 检测是否危险覆盖（本地空/云端非空 或 本地非空/云端空）
+ */
+function isDangerousOverwrite(localContent, remoteContent) {
+    const ls = arrayFillState(localContent);
+    const rs = arrayFillState(remoteContent);
+    if (ls === 'empty' && rs === 'nonempty') return 'local-empty';
+    if (ls === 'nonempty' && rs === 'empty') return 'remote-empty';
+    return null;
+}
 
 class CloudSync {
     constructor(deps) {
@@ -120,6 +149,18 @@ class CloudSync {
             // 1. 处理无冲突文件
             for (const item of analysis.safe) {
                 try {
+                    const _localContent = conflict.isCharacter
+                        ? local.characters[conflict.filename]?.content
+                        : local.files[conflict.filename]?.content;
+                    const _remoteContent = conflict.isCharacter
+                        ? remote.characters?.[conflict.filename]?.content
+                        : remote.files?.[conflict.filename]?.content;
+                    const _danger = isDangerousOverwrite(_localContent, _remoteContent);
+                    if (_danger) {
+                        console.warn(`[CloudSync] Skip conflict resolution for ${conflict.filename}: dangerous (${_danger})`);
+                        result.skipped.push(conflict.filename);
+                        continue;
+                    }
                     if (item.action === 'push') {
                         const remoteMtime = await this._pushFile(client, remotePath, item.filename);
                         result.pushed.push(item.filename);

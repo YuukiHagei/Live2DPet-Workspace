@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>用户画像</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            background: #f5f6f8;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .header {
+            background: #7eb8e8;
+            color: #fff;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 { font-size: 15px; font-weight: 600; }
+        .header .close-btn {
+            background: transparent; border: none; color: #fff;
+            font-size: 20px; cursor: pointer; width: 26px; height: 26px;
+            border-radius: 50%;
+        }
+        .header .close-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .content {
+            padding: 16px;
+            overflow-y: auto;
+            height: calc(100vh - 46px);
+        }
+        .content::-webkit-scrollbar { width: 6px; }
+        .content::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .card-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #7eb8e8;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .card-value {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .tag {
+            background: #f0f6fc;
+            color: #4a90c2;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+        .empty {
+            text-align: center;
+            color: #bbb;
+            font-size: 13px;
+            padding: 60px 20px;
+            font-style: italic;
+        }
+        .empty .emoji { font-size: 40px; display: block; margin-bottom: 12px; }
+        .meta {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-secondary { background: #f0f0f0; color: #555; }
+        .btn-secondary:hover { background: #e0e0e0; }
+        .btn-danger { background: #ffebee; color: #c62828; }
+        .btn-danger:hover { background: #ffcdd2; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>👤 用户画像</h1>
+        <button class="close-btn" id="close-btn">×</button>
+    </div>
+    <div class="content" id="content"></div>
+
+    <script src="src/renderer/user-profile.js"></script>
+</body>
+</html>

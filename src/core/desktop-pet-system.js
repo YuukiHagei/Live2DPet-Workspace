@@ -807,6 +807,14 @@ class DesktopPetSystem {
         if (window.electronAPI?.onReportTriggered) {
             window.electronAPI.onReportTriggered((data) => this.handleReport(data));
         }
+        // 监听倒计时完成
+        if (window.electronAPI?.onTimerCompleted) {
+            window.electronAPI.onTimerCompleted((timer, pomodoroTransition) => {
+                this.handleTimerComplete(timer, pomodoroTransition).catch(e =>
+                    console.warn('[Timer] handle failed:', e.message)
+                );
+            });
+        }
         console.log('[DesktopPetSystem] Initialized');
     }
 
@@ -2304,6 +2312,92 @@ ${lines.join('\n')}
                     description: '查看卡片统计（总数、待复习数、按科目分布）。用户问"我有多少卡"、"复习进度"时调用。',
                     parameters: { type: 'object', properties: {} }
                 }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'add_timer',
+                    description: '创建一个倒计时或正计时。用户说"帮我 X 分钟后提醒我..."、"计时 X 分钟"、"倒计时 X 分钟 做某事"、"开始一个正计时叫 学习"时调用。**注意区分**：如果用户说了具体时长就是倒计时（countdown）；如果说"开始计时"没给时长就是正计时（countup）。',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            name: { type: 'string', description: '计时器名称，如"泡面"、"专注学习"' },
+                            type: { type: 'string', description: 'countdown（倒计时，需给时长）或 countup（正计时），默认 countdown' },
+                            durationMinutes: { type: 'number', description: '倒计时时长（分钟），仅 countdown 时必填' },
+                            durationSeconds: { type: 'number', description: '倒计时时长的额外秒数（可选，用于 30 秒这种）' },
+                            notifyText: { type: 'string', description: '倒计时到点的提醒语（可选，默认"XX到时间了"）' }
+                        },
+                        required: ['name']
+                    }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'list_timers',
+                    description: '列出当前的倒计时/正计时。用户问"我还有哪些计时"、"我的倒计时"、"现在计时器还剩多久"时调用。',
+                    parameters: { type: 'object', properties: {} }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'pause_timer',
+                    description: '暂停一个正在运行的计时器。用户说"暂停一下倒计时"、"暂停泡面"时调用。',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            idOrName: { type: 'string', description: '计时器 ID 或名称关键词' }
+                        },
+                        required: ['idOrName']
+                    }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'resume_timer',
+                    description: '继续一个已暂停的计时器。用户说"继续倒计时"、"恢复泡面"时调用。',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            idOrName: { type: 'string', description: '计时器 ID 或名称关键词' }
+                        },
+                        required: ['idOrName']
+                    }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'delete_timer',
+                    description: '删除一个计时器。用户说"取消倒计时"、"删掉泡面那个计时"时调用。',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            idOrName: { type: 'string', description: '计时器 ID 或名称关键词' }
+                        },
+                        required: ['idOrName']
+                    }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'add_pomodoro',
+                    description: '启动一个番茄钟（工作→休息循环）。用户说"开始番茄钟"、"番茄钟 25 分钟"、"专注模式"时调用。',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            name: { type: 'string', description: '番茄钟名称，默认"番茄钟"' },
+                            workMin: { type: 'number', description: '每轮工作时长（分钟），默认 25' },
+                            breakMin: { type: 'number', description: '每轮休息时长（分钟），默认 5' },
+                            longBreakMin: { type: 'number', description: '长休息时长（分钟），默认 15' },
+                            roundsBeforeLong: { type: 'number', description: '每几轮后长休息，默认 4' },
+                            totalRounds: { type: 'number', description: '总共几轮，默认 4' }
+                        }
+                    }
+                }
             }
         ];
 
@@ -2461,6 +2555,151 @@ ${lines.join('\n')}
         }
     }
     
+    /**
+     * 番茄钟阶段切换 / 结束
+     */
+    async _handlePomodoroPhase(timer, transition) {
+        const p = timer.pomodoro;
+        const isPaused = timer.state === 'paused';
+
+        // === 情况 A：阶段刚结束（自动切换） ===
+        if (transition && !transition.finished) {
+            const prev = transition.prevPhase;
+            const next = p.phase;
+
+            let text;
+            if (prev === 'work' && next === 'break') {
+                text = `第 ${p.currentRound} 轮工作完成，休息 ${p.breakMin} 分钟吧`;
+            } else if (prev === 'work' && next === 'longBreak') {
+                text = `第 ${p.completedWorkRounds} 轮工作完成，长休息 ${p.longBreakMin} 分钟`;
+            } else if (prev === 'break') {
+                text = `休息结束，开始第 ${p.currentRound} 轮工作`;
+            } else if (prev === 'longBreak') {
+                text = `长休息结束，开始第 ${p.currentRound} 轮工作`;
+            } else {
+                text = `番茄钟继续：第 ${p.currentRound} 轮`;
+            }
+
+            this.pendingMessage = { text, isUserReply: false };
+            this._processQueue();
+            return;
+        }
+
+        // === 情况 B：整个番茄钟完成（自然走完最后一轮） ===
+        if (transition && transition.finished) {
+            const totalMin = p.completedWorkRounds * p.workMin;
+            const text = `🍅 番茄钟完成！共 ${p.completedWorkRounds} 轮，累计专注 ${totalMin} 分钟`;
+            this.pendingMessage = { text, isUserReply: false };
+            this._processQueue();
+            await this._writePomodoroSummary(timer);
+            return;
+        }
+
+        // === 情况 C：用户手动停止（无 transition） ===
+        const completedRounds = p.phase === 'work'
+            ? (p.completedWorkRounds || 0)
+            : (p.completedWorkRounds || 0);
+        if (completedRounds > 0) {
+            const totalMin = completedRounds * p.workMin;
+            const text = `🍅 番茄钟已结束，完成 ${completedRounds} 轮，累计专注 ${totalMin} 分钟`;
+            this.pendingMessage = { text, isUserReply: false };
+            this._processQueue();
+            await this._writePomodoroSummary(timer);
+        } else {
+            // 一轮都没完成，不写日程不播报
+            console.log('[Pomodoro] Stopped before completing any round, no summary');
+        }
+    }
+
+    /**
+     * 写番茄钟总结日程
+     */
+    async _writePomodoroSummary(timer) {
+        const p = timer.pomodoro;
+        const rounds = p.completedWorkRounds || 0;
+        if (rounds === 0) return;
+
+        try {
+            const startAt = timer.startedAt;
+            const endAt = timer.completedAt || Date.now();
+            await window.electronAPI.agentAddSchedule({
+                title: `🍅 番茄钟 - ${rounds} 轮`,
+                startAt,
+                endAt,
+                location: '',
+                notes: `工作 ${p.workMin} 分 × ${rounds} 轮，休息 ${p.breakMin} 分 / 长休息 ${p.longBreakMin} 分`
+            });
+            console.log('[Pomodoro] Summary written:', rounds, 'rounds');
+        } catch (e) {
+            console.warn('[Pomodoro] write summary failed:', e.message);
+        }
+    }
+    
+    /**
+     * 倒计时完成：播报 + 写日程
+     */
+    /**
+     * 计时完成：播报 + 写日程
+     * 倒计时 → 用用户自定义提醒语（或默认"到时间了"）
+     * 正计时 → 自动生成"任务结束，本次共用时 X"总结
+     */
+    async handleTimerComplete(timer, pomodoroTransition) {
+        if (!timer) return;
+        console.log('[DesktopPetSystem] Timer completed:', timer.name, timer.type,
+            pomodoroTransition ? 'pomodoro-transition' : '');
+
+        // ★ 番茄钟单独处理
+        if (timer.pomodoroMode && timer.pomodoro) {
+            return this._handlePomodoroPhase(timer, pomodoroTransition);
+        }
+
+        // 1. 生成播报文本
+        let notifyText;
+        if (timer.type === 'countup') {
+            // stopTimer 已把全部用时固定到 elapsedBeforePause
+            const elapsed = timer.elapsedBeforePause || 0;
+            const duration = this._fmtDuration(elapsed);
+            notifyText = `「${timer.name}」任务结束，本次共用时 ${duration}`;
+        } else {
+            notifyText = (timer.notifyText || '').trim() || `「${timer.name}」到时间了`;
+        }
+
+        this.pendingMessage = { text: notifyText, isUserReply: false };
+        this._processQueue();
+
+        // 2. 写入日程
+        if (timer.writeToCalendar !== false) {
+            try {
+                const startAt = timer.startedAt;
+                const endAt = timer.completedAt || Date.now();
+                await window.electronAPI.agentAddSchedule({
+                    title: timer.name,
+                    startAt,
+                    endAt,
+                    location: '',
+                    notes: timer.type === 'countdown' ? '由倒计时生成' : '由正计时生成'
+                });
+                console.log('[DesktopPetSystem] Timer 写入日程:', timer.name);
+            } catch (e) {
+                console.warn('[DesktopPetSystem] Timer 写日程失败:', e.message);
+            }
+        }
+    }
+
+    /**
+     * 格式化时长（毫秒 → 中文描述）
+     */
+    _fmtDuration(ms) {
+        const totalSec = Math.round(ms / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        if (h > 0) return `${h} 小时 ${m} 分`;
+        if (m > 0) return `${m} 分 ${s} 秒`;
+        return `${s} 秒`;
+    }
+
+
     clearAgentHistory() {
         if (this.agentHistory) this.agentHistory.clear();
     }
@@ -2585,7 +2824,7 @@ ${lines.join('\n')}
         const p = this._toolPolicies[toolName];
         if (p === 'allow' || p === 'ask' || p === 'deny') return p;
         // 待办/日程类本地工具默认允许，避免每次都弹确认
-        const localTools = ['add_todo', 'list_todos', 'complete_todo', 'update_todo', 'delete_todo', 'add_schedule', 'list_schedules', 'update_schedule', 'delete_schedule', 'add_reminder', 'list_reminders', 'delete_reminder', 'add_flashcard', 'update_flashcard', 'list_flashcards', 'get_due_cards', 'review_flashcard', 'delete_flashcard', 'get_flashcard_stats'];
+        const localTools = ['add_todo', 'list_todos', 'complete_todo', 'update_todo', 'delete_todo', 'add_schedule', 'list_schedules', 'update_schedule', 'delete_schedule', 'add_reminder', 'list_reminders', 'delete_reminder', 'add_flashcard', 'update_flashcard', 'list_flashcards', 'get_due_cards', 'review_flashcard', 'delete_flashcard', 'get_flashcard_stats', 'add_timer', 'list_timers', 'pause_timer', 'resume_timer', 'delete_timer', 'add_pomodoro'];
         if (localTools.includes(toolName)) return 'allow';
         return 'ask';
     }
@@ -2593,7 +2832,7 @@ ${lines.join('\n')}
      * 按工具名执行。
      */
     async _executeToolByName(name, args) {
-        const builtinNames = ['read_file', 'write_file', 'list_dir', 'list_dir_tree', 'search_files', 'grep_text', 'open_url', 'add_todo', 'list_todos', 'complete_todo', 'update_todo', 'delete_todo', 'add_schedule', 'list_schedules', 'update_schedule', 'delete_schedule', 'add_reminder', 'list_reminders', 'delete_reminder', 'add_flashcard', 'update_flashcard', 'list_flashcards', 'get_due_cards', 'review_flashcard', 'delete_flashcard', 'get_flashcard_stats'];
+        const builtinNames = ['read_file', 'write_file', 'list_dir', 'list_dir_tree', 'search_files', 'grep_text', 'open_url', 'add_todo', 'list_todos', 'complete_todo', 'update_todo', 'delete_todo', 'add_schedule', 'list_schedules', 'update_schedule', 'delete_schedule', 'add_reminder', 'list_reminders', 'delete_reminder', 'add_flashcard', 'update_flashcard', 'list_flashcards', 'get_due_cards', 'review_flashcard', 'delete_flashcard', 'get_flashcard_stats', 'add_timer', 'list_timers', 'pause_timer', 'resume_timer', 'delete_timer'];
 
         if (name === 'read_file') {
             const r = await window.electronAPI.readFile(args.path);
@@ -2792,7 +3031,125 @@ ${lines.join('\n')}
             }
             return lines.join('\n');
         }
+        // ========== 倒计时 / 正计时 ==========
+        if (name === 'add_timer') {
+            const timerType = args.type === 'countup' ? 'countup' : 'countdown';
+            let durationMs = 0;
+            if (timerType === 'countdown') {
+                const min = Number(args.durationMinutes) || 0;
+                const sec = Number(args.durationSeconds) || 0;
+                durationMs = (min * 60 + sec) * 1000;
+                if (durationMs <= 0) {
+                    return '创建失败：倒计时需要给出时长（durationMinutes 或 durationSeconds）';
+                }
+            }
+            const r = await window.electronAPI.timerAdd({
+                name: args.name,
+                type: timerType,
+                durationMs,
+                notifyText: args.notifyText || '',
+                writeToCalendar: true
+            });
+            if (!r.success) return '创建计时失败：' + r.error;
+            const t = r.timer;
+            if (timerType === 'countdown') {
+                const min = Math.floor(durationMs / 60000);
+                const sec = Math.floor((durationMs % 60000) / 1000);
+                const durStr = min > 0 ? `${min} 分${sec > 0 ? ' ' + sec + ' 秒' : ''}` : `${sec} 秒`;
+                return `已创建倒计时：${t.name}（${durStr}）`;
+            } else {
+                return `已创建正计时：${t.name}（点"停止"时结束）`;
+            }
+        }
+        if (name === 'add_pomodoro') {
+            const r = await window.electronAPI.timerAddPomodoro({
+                name: args.name || '番茄钟',
+                workMin: args.workMin || 25,
+                breakMin: args.breakMin || 5,
+                longBreakMin: args.longBreakMin || 15,
+                roundsBeforeLong: args.roundsBeforeLong || 4,
+                totalRounds: args.totalRounds || 4
+            });
+            if (!r.success) return '创建番茄钟失败：' + r.error;
+            const t = r.timer;
+            return `🍅 番茄钟已启动：工作 ${t.pomodoro.workMin} 分 / 休息 ${t.pomodoro.breakMin} 分，共 ${t.pomodoro.totalRounds} 轮`;
+        }
+        if (name === 'list_timers') {
+            const r = await window.electronAPI.timerList();
+            if (!r.success) return '查询计时失败：' + r.error;
+            if (r.timers.length === 0) return '当前没有任何计时';
+            const now = Date.now();
+            const lines = r.timers.map(t => {
+                let display;
+                const elapsed = (t.state === 'paused')
+                    ? (t.elapsedBeforePause || 0)
+                    : (t.state === 'done')
+                        ? (t.type === 'countdown' ? t.durationMs : (t.elapsedBeforePause || 0))
+                        : (t.elapsedBeforePause || 0) + (now - (t.startedAt || now));
+                if (t.type === 'countdown') {
+                    const remain = Math.max(0, t.durationMs - elapsed);
+                    display = this._fmtDuration(remain);
+                } else {
+                    display = this._fmtDuration(elapsed);
+                }
+                const stateStr = t.state === 'running' ? '进行中' :
+                                 t.state === 'paused' ? '已暂停' : '已完成';
+                if (t.pomodoroMode && t.pomodoro) {
+                    const phaseStr = { work: '工作中', break: '短休息', longBreak: '长休息' }[t.pomodoro.phase] || t.pomodoro.phase;
+                    return `🍅 ${t.name}（第 ${t.pomodoro.currentRound}/${t.pomodoro.totalRounds} 轮 · ${phaseStr}，${stateStr}）：${display}`;
+                }
+                const typeStr = t.type === 'countdown' ? '倒计时' : '正计时';
+                return `⏱ ${t.name}（${typeStr}，${stateStr}）：${display}`;
+            });
+            return lines.join('\n');
+        }
+        if (name === 'pause_timer') {
+            const t = await this._findTimerByNameOrId(args.idOrName);
+            if (!t) return `未找到计时器：${args.idOrName}`;
+            const r = await window.electronAPI.timerPause(t.id);
+            if (!r.success) return '暂停失败：' + r.error;
+            return `已暂停：${r.timer.name}`;
+        }
+        if (name === 'resume_timer') {
+            const t = await this._findTimerByNameOrId(args.idOrName);
+            if (!t) return `未找到计时器：${args.idOrName}`;
+            const r = await window.electronAPI.timerResume(t.id);
+            if (!r.success) return '继续失败：' + r.error;
+            return `已继续：${r.timer.name}`;
+        }
+        if (name === 'delete_timer') {
+            const t = await this._findTimerByNameOrId(args.idOrName);
+            if (!t) return `未找到计时器：${args.idOrName}`;
+            const r = await window.electronAPI.timerDelete(t.id);
+            if (!r.success) return '删除失败：' + r.error;
+            return `已删除计时器：${t.name}`;
+        }
         return '未知工具';
+    }
+
+    /**
+     * 按名称或 ID 查找计时器
+     */
+    async _findTimerByNameOrId(idOrName) {
+        if (!idOrName) return null;
+        const needle = String(idOrName).trim();
+        try {
+            const r = await window.electronAPI.timerList();
+            if (!r.success) return null;
+            const list = r.timers || [];
+            // 先按 ID 精确匹配
+            let hit = list.find(t => t.id === needle);
+            if (hit) return hit;
+            // 再按名称模糊匹配（优先 running/paused）
+            const byName = list.filter(t => t.name.includes(needle));
+            if (byName.length === 0) return null;
+            hit = byName.find(t => t.state === 'running')
+               || byName.find(t => t.state === 'paused')
+               || byName[0];
+            return hit;
+        } catch {
+            return null;
+        }
     }
 
     async _requestConfirmation(toolName, args) {

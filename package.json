@@ -47,6 +47,9 @@
       "flashcard-review.html",
       "agent-history.html",
       "observation-viewer.html",
+      "timer.html",
+      "timer-bubble.html",
+      "user-profile.html",
       "src/**/*",
       "assets/**/*",
       "libs/**/*"

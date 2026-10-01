@@ -50,6 +50,7 @@ class DataStore {
         this.agentHistoryFile = path.join(dataDir, 'agent-history.json');
         this.userProfileFile = path.join(dataDir, 'user-profile.json');
         this.observationsFile = path.join(dataDir, 'observations.json');
+        this.timersFile = path.join(dataDir, 'timers.json');
         this.todos = [];
         this.schedules = [];
         this.reminders = [];
@@ -58,6 +59,7 @@ class DataStore {
         this.agentHistory = { summary: '', recent: [] };
         this.userProfile = { name: '', occupation: '', goals: [], preferences: [], background: [], updatedAt: 0 };
         this.observations = { observations: [], contacts: {} };
+        this.timers = [];
         this._dirty = false;
         this._flushTimer = null;
         this._changeListeners = [];
@@ -69,44 +71,176 @@ class DataStore {
     }
 
     _load() {
-        try {
-            if (fs.existsSync(this.todosFile)) {
-                const data = JSON.parse(fs.readFileSync(this.todosFile, 'utf8'));
-                this.todos = Array.isArray(data.todos) ? data.todos : [];
+        this._loadErrors = {};
+        this._blockedFiles = new Set();
+        let needsRewrite = false;
+
+        const readJson = (file) => {
+            if (!fs.existsSync(file)) return null;
+            try {
+                return JSON.parse(fs.readFileSync(file, 'utf8'));
+            } catch (err) {
+                console.error(`[DataStore] load failed for ${path.basename(file)}:`, err.message);
+                this._loadErrors[path.basename(file)] = err.message;
+                try {
+                    const backup = file + '.corrupted-' + Date.now();
+                    fs.copyFileSync(file, backup);
+                    console.warn(`[DataStore] Corrupted file backed up: ${path.basename(backup)}`);
+                } catch {}
+                this._blockedFiles.add(path.basename(file));
+                return undefined;
             }
-            if (fs.existsSync(this.schedulesFile)) {
-                const data = JSON.parse(fs.readFileSync(this.schedulesFile, 'utf8'));
-                this.schedules = Array.isArray(data.schedules) ? data.schedules : [];
+        };
+
+        // 智能解包：处理 {key: [...]} 或 {key: {key: [...]}} 或更深层
+        // 返回 { arr, nested } — nested 表示解了一层以上（需要修复写回）
+        const unwrapArray = (obj, key) => {
+            if (!obj) return { arr: [], nested: false };
+            let cur = obj;
+            let depth = 0;
+            for (let i = 0; i < 8; i++) {
+                if (Array.isArray(cur)) {
+                    return { arr: cur, nested: depth > 0 };
+                }
+                if (cur && typeof cur === 'object' && Array.isArray(cur[key])) {
+                    return { arr: cur[key], nested: depth > 0 };
+                }
+                if (cur && typeof cur === 'object' && cur[key] && typeof cur[key] === 'object') {
+                    cur = cur[key];
+                    depth++;
+                    continue;
+                }
+                break;
             }
-            if (fs.existsSync(this.flashcardsFile)) {
-                const data = JSON.parse(fs.readFileSync(this.flashcardsFile, 'utf8'));
-                this.flashcards = Array.isArray(data.flashcards) ? data.flashcards : [];
+            return { arr: [], nested: depth > 0 };
+        };
+
+        const td = readJson(this.todosFile);
+        if (td !== undefined) {
+            const r = unwrapArray(td, 'todos');
+            this.todos = r.arr;
+            if (r.nested) needsRewrite = true;
+        }
+
+        const sd = readJson(this.schedulesFile);
+        if (sd !== undefined) {
+            const r = unwrapArray(sd, 'schedules');
+            this.schedules = r.arr;
+            if (r.nested) needsRewrite = true;
+        }
+
+        const rd = readJson(this.remindersFile);
+        if (rd !== undefined) {
+            const r = unwrapArray(rd, 'reminders');
+            this.reminders = r.arr;
+            if (r.nested) needsRewrite = true;
+        }
+
+        const fd = readJson(this.flashcardsFile);
+        if (fd !== undefined) {
+            const r = unwrapArray(fd, 'flashcards');
+            this.flashcards = r.arr;
+            if (r.nested) needsRewrite = true;
+        }
+
+        const cd = readJson(this.chatMemoryFile);
+        if (cd !== undefined) {
+            const r = unwrapArray(cd, 'messages');
+            this.chatMemory = r.arr;
+            if (r.nested) needsRewrite = true;
+        }
+
+        const tm = readJson(this.timersFile);
+        if (tm !== undefined) {
+            const r = unwrapArray(tm, 'timers');
+            this.timers = r.arr;
+            if (r.nested) needsRewrite = true;
+        }
+
+        // agent-history — 类似解包，但目标是对象
+        const ad = readJson(this.agentHistoryFile);
+        if (ad !== undefined) {
+            let cur = ad;
+            let depth = 0;
+            for (let i = 0; i < 8; i++) {
+                if (cur && typeof cur === 'object' &&
+                    (cur.summary !== undefined || Array.isArray(cur.recent))) {
+                    break;
+                }
+                if (cur && typeof cur === 'object' &&
+                    cur['agent-history'] && typeof cur['agent-history'] === 'object') {
+                    cur = cur['agent-history'];
+                    depth++;
+                    continue;
+                }
+                break;
             }
-            if (fs.existsSync(this.chatMemoryFile)) {
-                const data = JSON.parse(fs.readFileSync(this.chatMemoryFile, 'utf8'));
-                this.chatMemory = Array.isArray(data.messages) ? data.messages : [];
+            this.agentHistory = {
+                summary: cur?.summary || '',
+                recent: Array.isArray(cur?.recent) ? cur.recent : []
+            };
+            if (depth > 0) needsRewrite = true;
+        }
+
+        // user-profile — 类似解包
+        const ud = readJson(this.userProfileFile);
+        if (ud !== undefined && ud && typeof ud === 'object') {
+            let cur = ud;
+            let depth = 0;
+            for (let i = 0; i < 8; i++) {
+                if (cur && typeof cur === 'object' &&
+                    (cur.name !== undefined || cur.occupation !== undefined ||
+                     Array.isArray(cur.goals) || Array.isArray(cur.preferences))) {
+                    break;
+                }
+                if (cur && typeof cur === 'object' &&
+                    cur['user-profile'] && typeof cur['user-profile'] === 'object') {
+                    cur = cur['user-profile'];
+                    depth++;
+                    continue;
+                }
+                break;
             }
-            if (fs.existsSync(this.agentHistoryFile)) {
-                const data = JSON.parse(fs.readFileSync(this.agentHistoryFile, 'utf8'));
-                this.agentHistory = {
-                    summary: data.summary || '',
-                    recent: Array.isArray(data.recent) ? data.recent : []
-                };
+            this.userProfile = { ...this.userProfile, ...cur };
+            if (depth > 0) needsRewrite = true;
+        }
+
+        // observations — 类似解包
+        const od = readJson(this.observationsFile);
+        if (od !== undefined) {
+            let cur = od;
+            let depth = 0;
+            for (let i = 0; i < 8; i++) {
+                if (cur && typeof cur === 'object' &&
+                    Array.isArray(cur.observations)) {
+                    break;
+                }
+                if (cur && typeof cur === 'object' &&
+                    cur['observations'] && typeof cur['observations'] === 'object' &&
+                    !Array.isArray(cur['observations'])) {
+                    cur = cur['observations'];
+                    depth++;
+                    continue;
+                }
+                break;
             }
-            if (fs.existsSync(this.userProfileFile)) {
-                const data = JSON.parse(fs.readFileSync(this.userProfileFile, 'utf8'));
-                this.userProfile = { ...this.userProfile, ...data };
-            }
-            if (fs.existsSync(this.observationsFile)) {
-                const data = JSON.parse(fs.readFileSync(this.observationsFile, 'utf8'));
-                this.observations = {
-                    observations: Array.isArray(data.observations) ? data.observations : [],
-                    contacts: data.contacts && typeof data.contacts === 'object' ? data.contacts : {}
-                };
-            }
-            console.log(`[DataStore] loaded: ${this.todos.length} todos, ${this.schedules.length} schedules, ${this.reminders.length} reminders, ${this.flashcards.length} cards`);
-        } catch (err) {
-            console.error('[DataStore] load failed:', err.message);
+            this.observations = {
+                observations: Array.isArray(cur?.observations) ? cur.observations : [],
+                contacts: cur?.contacts && typeof cur.contacts === 'object' ? cur.contacts : {}
+            };
+            if (depth > 0) needsRewrite = true;
+        }
+
+        console.log(`[DataStore] loaded: ${this.todos.length} todos, ${this.schedules.length} schedules, ${this.reminders.length} reminders, ${this.flashcards.length} cards`);
+
+        // ★ 检测到嵌套 → 标记脏，让下次 flush 写回正确格式
+        if (needsRewrite) {
+            console.warn('[DataStore] Detected nested JSON structure, will rewrite on next flush');
+            this._markDirty();
+        }
+
+        if (Object.keys(this._loadErrors).length > 0) {
+            console.warn('[DataStore] Some files failed to load:', this._loadErrors);
         }
     }
 
@@ -125,17 +259,28 @@ class DataStore {
 
     _flush() {
         if (!this._dirty) return;
+        const blocked = this._blockedFiles || new Set();
         try {
-            fs.writeFileSync(this.todosFile, JSON.stringify({ todos: this.todos }, null, 2));
-            fs.writeFileSync(this.schedulesFile, JSON.stringify({ schedules: this.schedules }, null, 2));
-            fs.writeFileSync(this.remindersFile, JSON.stringify({ reminders: this.reminders }, null, 2));
-            fs.writeFileSync(this.flashcardsFile, JSON.stringify({ flashcards: this.flashcards }, null, 2));
-            fs.writeFileSync(this.chatMemoryFile, JSON.stringify({ messages: this.chatMemory }, null, 2));
-            fs.writeFileSync(this.agentHistoryFile, JSON.stringify(this.agentHistory, null, 2));
-            fs.writeFileSync(this.userProfileFile, JSON.stringify(this.userProfile, null, 2));
-            fs.writeFileSync(this.observationsFile, JSON.stringify(this.observations, null, 2));
+            if (!blocked.has('todos.json') && Array.isArray(this.todos))
+                fs.writeFileSync(this.todosFile, JSON.stringify({ todos: this.todos }, null, 2));
+            if (!blocked.has('schedules.json') && Array.isArray(this.schedules))
+                fs.writeFileSync(this.schedulesFile, JSON.stringify({ schedules: this.schedules }, null, 2));
+            if (!blocked.has('reminders.json') && Array.isArray(this.reminders))
+                fs.writeFileSync(this.remindersFile, JSON.stringify({ reminders: this.reminders }, null, 2));
+            if (!blocked.has('flashcards.json') && Array.isArray(this.flashcards))
+                fs.writeFileSync(this.flashcardsFile, JSON.stringify({ flashcards: this.flashcards }, null, 2));
+            if (!blocked.has('chat-memory.json') && Array.isArray(this.chatMemory))
+                fs.writeFileSync(this.chatMemoryFile, JSON.stringify({ messages: this.chatMemory }, null, 2));
+            if (!blocked.has('agent-history.json'))
+                fs.writeFileSync(this.agentHistoryFile, JSON.stringify(this.agentHistory, null, 2));
+            if (!blocked.has('user-profile.json'))
+                fs.writeFileSync(this.userProfileFile, JSON.stringify(this.userProfile, null, 2));
+            if (!blocked.has('observations.json'))
+                fs.writeFileSync(this.observationsFile, JSON.stringify(this.observations, null, 2));
+            if (!blocked.has('timers.json') && Array.isArray(this.timers))
+                fs.writeFileSync(this.timersFile, JSON.stringify({ timers: this.timers }, null, 2));
             this._dirty = false;
-            // 通知监听者（用于云同步等副作用）
+            // 通知监听者
             for (const fn of this._changeListeners) {
                 try { fn(); } catch (e) { console.warn('[DataStore] listener error:', e.message); }
             }
@@ -357,6 +502,7 @@ class DataStore {
             repeat: repeat || 'none',
             createdAt: now,
             done: false,
+            missed: false,
             triggeredAt: null,
             updatedAt: now
         };
@@ -380,6 +526,49 @@ class DataStore {
         return this.reminders.filter(r => !r.done && r.remindAt <= now);
     }
 
+    /**
+     * 一次性处理到点/过期/重复的提醒。
+     * @param {number} now 当前时间戳
+     * @param {number} windowMs 过期窗口（毫秒），超过此窗口的视为"已错过"
+     * @returns {{ due: Array, missed: Array, advanced: Array }}
+     */
+    processReminders(now = Date.now(), windowMs = 30 * 60 * 1000) {
+        const due = [];
+        const missed = [];
+        const advanced = [];
+
+        for (const r of this.reminders) {
+            if (r.done) continue;
+            if (r.missed) continue;    // 已标记错过，跳过
+            if (r.remindAt > now) continue;   // 还没到点
+
+            const age = now - r.remindAt;
+
+            if (r.repeat && r.repeat !== 'none') {
+                // 重复提醒：窗口内正常触发，过期太久静默推进
+                if (age <= windowMs) {
+                    due.push(r);
+                } else {
+                    const stepMs = r.repeat === 'daily' ? 86400000 : 7 * 86400000;
+                    do { r.remindAt += stepMs; } while (r.remindAt <= now);
+                    r.updatedAt = now;
+                    advanced.push(r);
+                }
+            } else {
+                // 一次性提醒
+                if (age <= windowMs) {
+                    due.push(r);
+                } else {
+                    r.missed = true;
+                    r.updatedAt = now;
+                    missed.push(r);
+                }
+            }
+        }
+
+        if (missed.length > 0 || advanced.length > 0) this._markDirty();
+        return { due, missed, advanced };
+    }
     /**
      * 标记提醒已触发。
      * - repeat=none：done=true
@@ -422,6 +611,11 @@ class DataStore {
             const ts = parseTime(remindAt);
             if (ts === null) throw new Error(`无法解析提醒时间：${remindAt}`);
             target.remindAt = ts;
+            // 改了时间 → 重置所有已触发状态，让提醒重新生效
+            target.missed = false;
+            target.done = false;
+            target.doneAt = null;
+            target.triggeredAt = null;
             changes.push('提醒时间');
         }
         if (repeat && ['none', 'daily', 'weekly'].includes(repeat)) {
@@ -807,6 +1001,292 @@ class DataStore {
     clearObservations() {
         this.observations = { observations: [], contacts: {} };
         this._markDirty();
+    }
+
+    // ========== 倒计时 / 正计时 ==========
+
+    addTimer({ name, type, durationMs, notifyText, writeToCalendar }) {
+        if (!name || !name.trim()) throw new Error('名称不能为空');
+        const t = type === 'countup' ? 'countup' : 'countdown';
+        if (t === 'countdown') {
+            const d = Number(durationMs);
+            if (!Number.isFinite(d) || d <= 0) throw new Error('倒计时时长必须大于 0');
+        }
+        const now = Date.now();
+        const timer = {
+            id: generateId('tmr'),
+            name: name.trim(),
+            type: t,
+            durationMs: t === 'countdown' ? Number(durationMs) : null,
+            state: 'running',
+            startedAt: now,
+            elapsedBeforePause: 0,
+            pausedAt: null,
+            completedAt: null,
+            notifyText: (notifyText || '').trim(),
+            writeToCalendar: writeToCalendar !== false,
+            createdAt: now,
+            updatedAt: now
+        };
+        this.timers.push(timer);
+        this._markDirty();
+        return timer;
+    }
+
+    /**
+     * 创建番茄钟（只创建第一个工作阶段）
+     */
+    addPomodoro({ name, workMin, breakMin, longBreakMin, roundsBeforeLong, totalRounds, notifyText }) {
+        const now = Date.now();
+        const w = Number(workMin) || 25;
+        const b = Number(breakMin) || 5;
+        const lb = Number(longBreakMin) || 15;
+        const rbl = Number(roundsBeforeLong) || 4;
+        const tr = Number(totalRounds) || 4;
+
+        const timer = {
+            id: generateId('pom'),
+            name: (name || '番茄钟').trim(),
+            type: 'countdown',
+            durationMs: w * 60000,
+            state: 'running',
+            startedAt: now,
+            elapsedBeforePause: 0,
+            pausedAt: null,
+            completedAt: null,
+            notifyText: (notifyText || '').trim(),
+            writeToCalendar: false,     // 番茄钟不写阶段日程
+            createdAt: now,
+            updatedAt: now,
+            pomodoroMode: true,
+            pomodoro: {
+                workMin: w,
+                breakMin: b,
+                longBreakMin: lb,
+                roundsBeforeLong: rbl,
+                totalRounds: tr,
+                currentRound: 1,
+                phase: 'work',
+                completedWorkRounds: 0    // 累计完成的工作轮数
+            }
+        };
+        this.timers.push(timer);
+        this._markDirty();
+        return timer;
+    }
+
+    /**
+     * 番茄钟推进到下一阶段（原地修改，不改 state）
+     */
+    _advancePomodoro(t) {
+        const p = t.pomodoro;
+        const now = Date.now();
+
+        if (p.phase === 'work') {
+            // 工作阶段结束 → 累计完成轮数
+            p.completedWorkRounds = (p.completedWorkRounds || 0) + 1;
+            const needLong = (p.completedWorkRounds % p.roundsBeforeLong === 0);
+            if (needLong) {
+                p.phase = 'longBreak';
+                t.durationMs = p.longBreakMin * 60000;
+            } else {
+                p.phase = 'break';
+                t.durationMs = p.breakMin * 60000;
+            }
+        } else {
+            // 休息阶段结束 → 判断是否全部结束
+            const nextRound = p.currentRound + 1;
+            if (nextRound > p.totalRounds) {
+                // 全部完成
+                t.state = 'done';
+                t.completedAt = now;
+                t.elapsedBeforePause = t.durationMs;
+                t.updatedAt = now;
+                this._markDirty();
+                return;
+            }
+            p.currentRound = nextRound;
+            p.phase = 'work';
+            t.durationMs = p.workMin * 60000;
+        }
+
+        // 应用新阶段
+        t.startedAt = now;
+        t.elapsedBeforePause = 0;
+        t.pausedAt = null;
+        t.updatedAt = now;
+        this._markDirty();
+    }
+
+    listTimers() {
+        return this.timers.slice();
+    }
+
+    getTimer(id) {
+        return this.timers.find(t => t.id === id) || null;
+    }
+
+    pauseTimer(id) {
+        const t = this.getTimer(id);
+        if (!t) throw new Error('找不到计时器');
+        if (t.state !== 'running') throw new Error('当前状态不能暂停');
+        t.elapsedBeforePause += Date.now() - t.startedAt;
+        t.pausedAt = Date.now();
+        t.state = 'paused';
+        t.updatedAt = Date.now();
+        this._markDirty();
+        return t;
+    }
+
+    resumeTimer(id) {
+        const t = this.getTimer(id);
+        if (!t) throw new Error('找不到计时器');
+        if (t.state !== 'paused') throw new Error('当前状态不能继续');
+        t.startedAt = Date.now();
+        t.pausedAt = null;
+        t.state = 'running';
+        t.updatedAt = Date.now();
+        this._markDirty();
+        return t;
+    }
+
+    /**
+     * 完成后继续：重置状态，改时长（倒计时）或清零（正计时）
+     */
+    restartTimer(id, newDurationMs) {
+        const t = this.getTimer(id);
+        if (!t) throw new Error('找不到计时器');
+        const now = Date.now();
+        if (t.type === 'countdown') {
+            const d = Number(newDurationMs);
+            if (!Number.isFinite(d) || d <= 0) throw new Error('时长必须大于 0');
+            t.durationMs = d;
+        }
+        t.state = 'running';
+        t.startedAt = now;
+        t.elapsedBeforePause = 0;
+        t.pausedAt = null;
+        t.completedAt = null;
+        t.updatedAt = now;
+        this._markDirty();
+        return t;
+    }
+
+    stopTimer(id) {
+        const t = this.getTimer(id);
+        if (!t) throw new Error('找不到计时器');
+        const now = Date.now();
+        // 把"最后一段运行时长"固定到 elapsedBeforePause
+        if (t.state === 'running') {
+            t.elapsedBeforePause = (t.elapsedBeforePause || 0) + (now - (t.startedAt || now));
+        }
+        t.state = 'done';
+        t.completedAt = now;
+        t.updatedAt = now;
+        this._markDirty();
+        return t;
+    }
+
+    updateTimer({ id, name, notifyText, writeToCalendar, durationMs, pomodoro }) {
+        const t = this.getTimer(id);
+        if (!t) throw new Error('找不到计时器');
+        const changes = [];
+        if (typeof name === 'string' && name.trim() && name.trim() !== t.name) {
+            t.name = name.trim();
+            changes.push('名称');
+        }
+        if (args.pomodoro && t.pomodoroMode && t.pomodoro) {
+            const p = args.pomodoro;
+            if (Number.isFinite(p.workMin) && p.workMin > 0) t.pomodoro.workMin = p.workMin;
+            if (Number.isFinite(p.breakMin) && p.breakMin > 0) t.pomodoro.breakMin = p.breakMin;
+            if (Number.isFinite(p.longBreakMin) && p.longBreakMin > 0) t.pomodoro.longBreakMin = p.longBreakMin;
+            if (Number.isFinite(p.roundsBeforeLong) && p.roundsBeforeLong > 0) t.pomodoro.roundsBeforeLong = p.roundsBeforeLong;
+            if (Number.isFinite(p.totalRounds) && p.totalRounds > 0) t.pomodoro.totalRounds = p.totalRounds;
+            changes.push('番茄钟参数');
+        }
+        if (typeof notifyText === 'string') {
+            t.notifyText = notifyText.trim();
+            changes.push('提醒语');
+        }
+        if (typeof writeToCalendar === 'boolean') {
+            t.writeToCalendar = writeToCalendar;
+            changes.push('写日程');
+        }
+        if (durationMs !== undefined && t.type === 'countdown' && t.state !== 'running') {
+            const d = Number(durationMs);
+            if (Number.isFinite(d) && d > 0) {
+                t.durationMs = d;
+                changes.push('时长');
+            }
+        }
+        if (changes.length === 0) throw new Error('没有提供任何要修改的字段');
+        t.updatedAt = Date.now();
+        this._markDirty();
+        return { timer: t, changes };
+    }
+
+    deleteTimer(id) {
+        const idx = this.timers.findIndex(t => t.id === id);
+        if (idx === -1) throw new Error('找不到计时器');
+        const removed = this.timers.splice(idx, 1)[0];
+        this._markDirty();
+        return removed;
+    }
+
+    /**
+     * 计算计时器当前"已过毫秒"
+     */
+    getTimerElapsed(t) {
+        if (t.state === 'paused') {
+            return t.elapsedBeforePause;
+        }
+        if (t.state === 'done') {
+            return t.type === 'countdown' ? t.durationMs : t.elapsedBeforePause;
+        }
+        return t.elapsedBeforePause + (Date.now() - t.startedAt);
+    }
+
+    /**
+     * 找出已完成的倒计时（running + 到点）
+     */
+    getDueTimers(now = Date.now()) {
+        return this.timers.filter(t => {
+            if (t.state !== 'running') return false;
+            if (t.type !== 'countdown') return false;
+            return this.getTimerElapsed(t) >= t.durationMs;
+        });
+    }
+
+    /**
+     * 标记倒计时完成
+     */
+    markTimerCompleted(id) {
+        const t = this.getTimer(id);
+        if (!t) return null;
+        const now = Date.now();
+
+        // ★ 番茄钟：不标记 done，而是原地推进到下一阶段
+        if (t.pomodoroMode && t.pomodoro) {
+            const prevPhase = t.pomodoro.phase;
+            const prevRound = t.pomodoro.currentRound;
+            this._advancePomodoro(t);
+            return {
+                timer: t,
+                pomodoroTransition: {
+                    prevPhase,
+                    prevRound,
+                    finished: t.state === 'done'
+                }
+            };
+        }
+
+        // 普通计时器
+        t.state = 'done';
+        t.completedAt = now;
+        t.elapsedBeforePause = t.durationMs;
+        t.updatedAt = now;
+        this._markDirty();
+        return { timer: t, pomodoroTransition: null };
     }
 
 

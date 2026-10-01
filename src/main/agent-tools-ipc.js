@@ -4,6 +4,14 @@
 function registerAgentToolsIPC(ctx, ipcMain, deps) {
     const { dataStore } = deps;
 
+    // 广播 timer 变化给所有窗口
+    function broadcastTimerUpdate() {
+        const { BrowserWindow } = require('electron');
+        for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed()) w.webContents.send('timer-updated');
+        }
+    }
+
     // ========== 待办 ==========
 
     ipcMain.handle('agent-add-todo', async (event, args) => {
@@ -298,6 +306,104 @@ function registerAgentToolsIPC(ctx, ipcMain, deps) {
         try {
             dataStore.clearObservations();
             return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ========== 倒计时 / 正计时 ==========
+
+    ipcMain.handle('timer-add', async (event, args) => {
+        try {
+            const t = dataStore.addTimer(args || {});
+            broadcastTimerUpdate();
+            return { success: true, timer: t };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('timer-add-pomodoro', async (event, args) => {
+        try {
+            const t = dataStore.addPomodoro(args || {});
+            broadcastTimerUpdate();
+            return { success: true, timer: t };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('timer-list', async () => {
+        try {
+            return { success: true, timers: dataStore.listTimers() };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('timer-pause', async (event, id) => {
+        try {
+            const t = dataStore.pauseTimer(id);
+            broadcastTimerUpdate();
+            return { success: true, timer: t };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('timer-resume', async (event, id) => {
+        try {
+            const t = dataStore.resumeTimer(id);
+            broadcastTimerUpdate();
+            return { success: true, timer: t };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('timer-restart', async (event, id, newDurationMs) => {
+        try {
+            const t = dataStore.restartTimer(id, newDurationMs);
+            broadcastTimerUpdate();
+            return { success: true, timer: t };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('timer-stop', async (event, id) => {
+        try {
+            const t = dataStore.stopTimer(id);
+            if (t) {
+                const { BrowserWindow } = require('electron');
+                for (const w of BrowserWindow.getAllWindows()) {
+                    if (!w.isDestroyed()) {
+                        w.webContents.send('timer-completed', { timer: t, pomodoroTransition: null });
+                    }
+                }
+            }
+            broadcastTimerUpdate();
+            return { success: true, timer: t };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('timer-update', async (event, args) => {
+        try {
+            const r = dataStore.updateTimer(args || {});
+            broadcastTimerUpdate();
+            return { success: true, timer: r.timer, changes: r.changes };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('timer-delete', async (event, id) => {
+        try {
+            const t = dataStore.deleteTimer(id);
+            broadcastTimerUpdate();
+            return { success: true, timer: t };
         } catch (err) {
             return { success: false, error: err.message };
         }

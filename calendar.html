@@ -243,6 +243,15 @@
         .item.reminder { border-left: 3px solid #b07ee8; }
         .item.card { border-left: 3px solid #e87eb8; }
         .item.done { opacity: 0.5; }
+        .item.reminder.missed {
+            opacity: 0.55;
+        }
+        .item.reminder.missed .item-title {
+            text-decoration: line-through;
+        }
+        .item.reminder.missed .item-meta {
+            color: #e08080;
+        }
         .item.done .item-title { text-decoration: line-through; }
         .item-time {
             font-size: 11px;
@@ -253,6 +262,9 @@
         .item.schedule .item-time { color: #7eb8e8; }
         .item.todo .item-time { color: #e8b060; }
         .item.reminder .item-time { color: #b07ee8; }
+        .item.reminder.missed {
+            opacity: 0.55;
+        }
         .item.card .item-time { color: #e87eb8; }
         .item-main { flex: 1; min-width: 0; }
         .item-title {

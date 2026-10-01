@@ -314,6 +314,9 @@ const I18N = {
     'cloud.githubTokenHint': 'How to generate: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → check gist scope.',
     'cloud.syncCharacters': 'Sync Character Cards',
     'cloud.syncCharactersHint': 'When enabled, your custom character cards will be synced to Gist for mobile access.',
+    'timer.notify.title': '⏱ Default Timer Notification',
+    'timer.notify.hint': 'Used when creating a countdown without a custom notification message.',
+    'timer.notify.label': 'Default notification text',
   },
   zh: {
     'lang.label': '语言',
@@ -626,6 +629,9 @@ const I18N = {
     'cloud.githubTokenHint': '生成方法：GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → 勾选 gist 权限即可。',
     'cloud.syncCharacters': '同步角色卡',
     'cloud.syncCharactersHint': '开启后你自定义的角色卡会同步到 Gist，手机端可以读取。',
+    'timer.notify.title': '⏱ 计时默认提醒语',
+    'timer.notify.hint': '创建倒计时时，若未填写自定义提醒语，将使用这里的内容。',
+    'timer.notify.label': '默认到点提醒语',
   },
   ja: {
     'lang.label': '言語',
@@ -938,6 +944,9 @@ const I18N = {
     'cloud.githubTokenHint': '生成方法：GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → gist 権限をチェック。',
     'cloud.syncCharacters': 'キャラクターカードを同期',
     'cloud.syncCharactersHint': '有効にすると、カスタムキャラクターカードが Gist に同期され、モバイルからもアクセス可能になります。',
+    'timer.notify.title': '⏱ タイマー既定の通知メッセージ',
+    'timer.notify.hint': 'カスタム通知を入力せずにカウントダウンを作成した場合、この内容が使用されます。',
+    'timer.notify.label': '既定の通知メッセージ',
   }
 };
 

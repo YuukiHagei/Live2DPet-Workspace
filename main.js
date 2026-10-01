@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 
+const { createTimerScheduler } = require('./src/main/timer-scheduler');
 const { createStartupSync } = require('./src/main/startup-sync');
 const { GistSync } = require('./src/main/gist-sync');
 const { CloudSync } = require('./src/main/cloud-sync');
@@ -64,7 +65,7 @@ const mcpManager = new McpManager(basePath, mcpServerPath);
 
 // ========== Register Modules ==========
 
-const { createSettingsWindow, openChatDialog, setWindowAnchor, openAgentHistoryWindow, openObservationWindow, setProactiveState, openFlashcardReviewWindow, openCalendarWindow } = registerWindowHandlers(ctx, ipcMain, {
+const { createSettingsWindow, openChatDialog, setWindowAnchor, openAgentHistoryWindow, openObservationWindow, setProactiveState, openFlashcardReviewWindow, openCalendarWindow, openTimerWindow, openTimerBubble, openUserProfileWindow, closeTimerBubble } = registerWindowHandlers(ctx, ipcMain, {
     BrowserWindow, path, basePath, configManager,
     updateTrayMenu: () => trayManager.updateTrayMenu()
 });
@@ -78,7 +79,11 @@ registerScreenCapture(ctx, ipcMain, { desktopCapturer, powerMonitor });
 registerUtilityIPC(ctx, ipcMain, {
     configManager, mt, Menu, shell, app, createSettingsWindow, openChatDialog,
     setWindowAnchor, openAgentHistoryWindow, openObservationWindow, setProactiveState,
-    openFlashcardReviewWindow, openCalendarWindow
+    openFlashcardReviewWindow, openCalendarWindow,
+    openTimerWindow,
+    openTimerBubble,
+    closeTimerBubble,
+    openUserProfileWindow
 });
 
 registerCharacterHandlers(ctx, ipcMain, {
@@ -253,6 +258,49 @@ app.whenReady().then(async () => {
     // 初始化数据层
     const dataDir = path.join(app.getPath('userData'), 'data');
     dataStore = new DataStore(dataDir);
+    // ========== 计时悬浮窗自动显示/隐藏 ==========
+    ctx._userClosedTimerBubble = false;
+
+    ctx.updateTimerBubbleVisibility = function() {
+        try {
+            const active = dataStore.listTimers()
+                .filter(t => t.state === 'running' || t.state === 'paused');
+            const count = active.length;
+            const bubbleOpen = ctx.timerBubbleWindow && !ctx.timerBubbleWindow.isDestroyed();
+
+            // 没有计时器：关闭悬浮窗，重置用户关闭标志
+            if (count === 0) {
+                if (bubbleOpen) {
+                    ctx.timerBubbleWindow.close();
+                }
+                ctx._userClosedTimerBubble = false;
+                return;
+            }
+
+            // 有计时器 + 用户手动关过：保持关闭
+            if (ctx._userClosedTimerBubble) {
+                return;
+            }
+
+            // 有计时器 + 用户没关过：自动打开
+            if (!bubbleOpen) {
+                try { openTimerBubble(); } catch (e) {
+                    console.warn('[TimerBubble] auto open failed:', e.message);
+                }
+            }
+        } catch (e) {
+            console.warn('[TimerBubble] auto visibility failed:', e.message);
+        }
+    };
+
+    // 数据变化时检查
+    dataStore.onChange(() => {
+        ctx.updateTimerBubbleVisibility();
+    });
+
+    // 启动 1 秒后跑一次（处理遗留的计时器）
+    setTimeout(() => ctx.updateTimerBubbleVisibility(), 1000);
+
     ctx.cloudSync = new CloudSync({
         configManager,
         dataDir,
@@ -284,7 +332,7 @@ app.whenReady().then(async () => {
     }
     ctx.companionTracker = new CompanionTracker(dataDir);
     // 注册待办/日程 IPC（必须在 dataStore 初始化之后）
-    registerAgentToolsIPC(ctx, ipcMain, { dataStore });
+    registerAgentToolsIPC(ctx, ipcMain, { dataStore, openTimerBubble });
     // 每日简报
     ctx.dailyBrief = new DailyBrief({
         configManager,
@@ -350,8 +398,30 @@ app.whenReady().then(async () => {
         ctx.reportGenerator._save();
         return { success: true };
     });
+    ipcMain.on('pet-system-ready', (event) => {
+        // 通过 webContents 找到 petSystem 所在的窗口
+        const wc = event.sender;
+        // 无法直接访问渲染进程的 petSystem 实例
+        // 改为用 IPC 通知渲染进程处理倒计时
+        ctx._petSystemWebContents = wc;
+        console.log('[Main] Pet system ready');
+    });
+    // 倒计时调度器
+    ctx.timerScheduler = createTimerScheduler(dataStore, {
+        onTimerComplete: (timer, pomodoroTransition) => {
+            console.log('[Timer] Completed:', timer.name,
+                pomodoroTransition ? `(pomodoro: ${pomodoroTransition.prevPhase} → ${timer.pomodoro?.phase}, finished: ${pomodoroTransition.finished})` : '');
+            const { BrowserWindow } = require('electron');
+            for (const w of BrowserWindow.getAllWindows()) {
+                if (!w.isDestroyed()) {
+                    w.webContents.send('timer-completed', { timer, pomodoroTransition });
+                }
+            }
+        }
+    });
+    ctx.timerScheduler.start();
     // 启动提醒调度器
-    ctx.reminderScheduler = createReminderScheduler(dataStore, { BrowserWindow });
+    ctx.reminderScheduler = createReminderScheduler(dataStore, { BrowserWindow, configManager });
     ctx.reminderScheduler.start();
     try {
         const cfg = await configManager.loadConfigFile();
@@ -437,5 +507,6 @@ app.on('before-quit', async (e) => {
     if (ctx.reminderScheduler) ctx.reminderScheduler.stop();
     if (ctx.dailyBrief) ctx.dailyBrief.stop();
     if (ctx.reportGenerator) ctx.reportGenerator.stop();
+    if (ctx.timerScheduler) ctx.timerScheduler.stop();
 });
 

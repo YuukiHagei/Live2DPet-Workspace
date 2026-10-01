@@ -115,6 +115,13 @@ class CalendarApp {
         this.el.cardSave.onclick = () => this.saveCardDue();
         this.el.cardCancel.onclick = () => this.closeModal('card');
 
+        // 提醒触发后立即刷新（让"✓ 已提醒"立刻显示）
+        if (window.electronAPI?.onReminderTriggered) {
+            window.electronAPI.onReminderTriggered(() => {
+                this.reload();
+            });
+        }
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 if (this.el.modalSchedule.classList.contains('show')) return this.closeModal('schedule');
@@ -166,7 +173,8 @@ class CalendarApp {
 
     async loadReminders() {
         try {
-            const r = await window.electronAPI.agentListReminders({ includeDone: false, limit: 200 });
+            // 包含已完成（done）和已错过（missed）的提醒，让它们在日历上保留显示
+            const r = await window.electronAPI.agentListReminders({ includeDone: true, limit: 200 });
             this.reminders = r.success ? r.reminders : [];
         } catch (e) { this.reminders = []; }
     }
@@ -316,10 +324,12 @@ class CalendarApp {
         return this.todos.filter(t => t.dueAt && this._tsToDateKey(t.dueAt) === dayKey);
     }
 
-    _remindersOfDay(dayKey) {
-        // 重复提醒不标在日历上（用户选项C）
+    _remindersOfDay(dayKey, includeDone = false) {
         return this.reminders.filter(r => {
+            // 重复提醒不标在日历上
             if (r.repeat && r.repeat !== 'none') return false;
+            // 月视图圆点不计已完成/已错过的
+            if (!includeDone && (r.done || r.missed)) return false;
             return this._tsToDateKey(r.remindAt) === dayKey;
         });
     }
@@ -419,7 +429,13 @@ class CalendarApp {
 
         const dScheds = this._schedulesCoveringDay(dayKey).sort((a, b) => a.startAt - b.startAt);
         const dTodos = this._todosOfDay(dayKey).sort((a, b) => (a.dueAt || 0) - (b.dueAt || 0));
-        const dRems = this._remindersOfDay(dayKey).sort((a, b) => a.remindAt - b.remindAt);
+        const dRems = this._remindersOfDay(dayKey, true).sort((a, b) => {
+            // 未完成的在前，已完成/已错过的靠后
+            const aDone = a.done || a.missed ? 1 : 0;
+            const bDone = b.done || b.missed ? 1 : 0;
+            if (aDone !== bDone) return aDone - bDone;
+            return a.remindAt - b.remindAt;
+        });
         const dCards = this._cardsOfDay(dayKey);
 
         this.el.itemList.innerHTML = '';
@@ -518,24 +534,40 @@ class CalendarApp {
 
     _buildReminderItem(r) {
         const item = document.createElement('div');
-        item.className = 'item reminder';
+        const isDone = r.done;
+        const isMissed = r.missed && !r.done;
+        item.className = 'item reminder'
+            + (isDone ? ' done' : '')
+            + (isMissed ? ' missed' : '');
+
         const time = document.createElement('span');
         time.className = 'item-time';
         time.textContent = this._formatTime(r.remindAt);
         item.appendChild(time);
+
         const main = document.createElement('div');
         main.className = 'item-main';
+
         const title = document.createElement('div');
         title.className = 'item-title';
         title.textContent = r.text;
         main.appendChild(title);
+
         const meta = document.createElement('div');
         meta.className = 'item-meta';
-        const parts = ['⏰ 提醒'];
-        if (r.repeat === 'daily') parts.push('每天');
-        else if (r.repeat === 'weekly') parts.push('每周');
+        const parts = [];
+        if (isDone) {
+            parts.push('✓ 已提醒');
+        } else if (isMissed) {
+            parts.push('⚠️ 已错过');
+        } else {
+            parts.push('⏰ 提醒');
+            if (r.repeat === 'daily') parts.push('每天');
+            else if (r.repeat === 'weekly') parts.push('每周');
+        }
         meta.textContent = parts.join(' · ');
         main.appendChild(meta);
+
         item.appendChild(main);
 
         const btnDel = document.createElement('button');

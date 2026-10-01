@@ -47,6 +47,10 @@ document.getElementById('lang-select').addEventListener('change', (e) => {
 document.addEventListener('DOMContentLoaded', async () => {
     petSystem = new DesktopPetSystem();
     await petSystem.init();
+    // ★ 把实例暴露给主进程（用于倒计时完成等回调）
+    if (window.electronAPI?.registerPetSystem) {
+        window.electronAPI.registerPetSystem();
+    }
 
     // 显示陪伴天数
     if (window.electronAPI?.getCompanionStats) {
@@ -2063,3 +2067,23 @@ document.getElementById('btn-cloud-reset-state')?.addEventListener('click', asyn
         showStatus('cloud-action-status', '❌ 重置失败：' + r.error, 'error');
     }
 });
+
+// ========== 计时默认提醒语 ==========
+
+async function loadTimerNotifyConfig() {
+    try {
+        const cfg = await window.electronAPI.loadConfig();
+        const el = document.getElementById('timer-default-notify');
+        if (el) el.value = cfg.timerDefaultNotify || '到时间了';
+    } catch (e) {
+        console.warn('[TimerNotify] load failed:', e);
+    }
+}
+
+document.getElementById('btn-save-timer-notify')?.addEventListener('click', async () => {
+    const val = document.getElementById('timer-default-notify').value.trim() || '到时间了';
+    await window.electronAPI.saveConfig({ timerDefaultNotify: val });
+    showStatus('timer-notify-status', t('status.saved'), 'success');
+});
+
+setTimeout(() => loadTimerNotifyConfig(), 700);

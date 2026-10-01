@@ -81,6 +81,7 @@ function getDefaultConfig() {
             monthlyEnabled: true,
             monthlyTime: '21:00'
         },
+        timerDefaultNotify: '到时间了',
         mcp: {
             servers: [
                 {
@@ -117,6 +118,7 @@ function getDefaultConfig() {
             lastSyncAt: 0,
             lastSyncPerFile: {}
         },
+        timerBubble: { x: null, y: null },
     };
 }
 

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>倒计时 / 计时</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            background: #f5f6f8;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #333;
+            overflow: hidden;
+        }
+        .header {
+            background: #7eb8e8;
+            color: #fff;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .header h1 { font-size: 14px; font-weight: 600; }
+        .header .close-btn {
+            background: transparent; border: none; color: #fff;
+            font-size: 18px; cursor: pointer; width: 24px; height: 24px;
+            border-radius: 50%;
+        }
+        .header .close-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .toolbar {
+            background: #fff;
+            padding: 10px 14px;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+        .btn-primary { background: #7c4dff; color: #fff; }
+        .btn-primary:hover { background: #651fff; }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-secondary:hover { background: #d0d0d0; }
+        .btn-danger { background: #ffebee; color: #c62828; }
+        .btn-danger:hover { background: #ffcdd2; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 14px;
+        }
+        .content::-webkit-scrollbar { width: 6px; }
+        .content::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+        .timer-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border-left: 3px solid #7c4dff;
+        }
+        .timer-card.paused { border-left-color: #e8b060; }
+        .timer-card.done { border-left-color: #6bb86b; opacity: 0.85; }
+        .timer-card.countup { border-left-color: #6b9de8; }
+
+        .timer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .timer-name {
+            font-size: 14px;
+            font-weight: 600;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .timer-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #f0f0f0;
+            color: #666;
+            margin-left: 6px;
+            flex-shrink: 0;
+        }
+        .timer-badge.paused { background: #fff3e0; color: #e65100; }
+        .timer-badge.done { background: #e8f5e9; color: #2e7d32; }
+
+        .timer-display {
+            font-size: 32px;
+            font-weight: 600;
+            text-align: center;
+            padding: 8px 0;
+            color: #7c4dff;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 1px;
+        }
+        .timer-card.paused .timer-display { color: #e8b060; }
+        .timer-card.done .timer-display { color: #6bb86b; }
+        .timer-card.countup .timer-display { color: #6b9de8; }
+
+        .timer-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .empty {
+            text-align: center;
+            color: #bbb;
+            font-size: 13px;
+            padding: 40px 20px;
+            font-style: italic;
+        }
+
+        /* 模态框 */
+        .modal-mask {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-mask.show { display: flex; }
+        .modal {
+            background: #fff;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 380px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 18px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .modal h3 {
+            font-size: 15px;
+            color: #333;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .modal label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        .modal input, .modal select, .modal textarea {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            background: #fafbfc;
+        }
+        .modal input:focus, .modal select:focus, .modal textarea:focus {
+            border-color: #7c4dff;
+            background: #fff;
+        }
+        .modal .type-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .modal .type-row label {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 0;
+            font-size: 13px;
+            color: #555;
+        }
+        .modal .type-row input { display: none; }
+        .modal .type-row input:checked + span { color: #7c4dff; font-weight: 600; }
+        .modal .type-row label:has(input:checked) {
+            border-color: #7c4dff;
+            background: #f5f0ff;
+        }
+        .duration-row {
+            display: flex;
+            gap: 6px;
+        }
+        .duration-row input { flex: 1; }
+        .duration-row span {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            color: #666;
+        }
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #555;
+        }
+        .checkbox-row input { width: auto; }
+        .modal-btns {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .modal-btns button {
+            flex: 1;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 0;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-save { background: #6bb86b; color: #fff; }
+        .btn-save:hover { background: #5aa85a; }
+        .btn-cancel { background: #eee; color: #555; }
+        .btn-cancel:hover { background: #ddd; }
+        .status-bar {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            display: none;
+        }
+        .status-bar.show { display: block; }
+        .status-bar.error { background: #ffebee; color: #c62828; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⏱ 倒计时 / 计时</h1>
+        <button class="close-btn" id="close-btn">×</button>
+    </div>
+
+    <div class="toolbar">
+        <button class="btn btn-primary" id="btn-new">+ 新建</button>
+        <button class="btn btn-primary" id="btn-new-pomodoro" style="background:#e87eb8;">🍅 番茄钟</button>
+        <button class="btn btn-secondary" id="btn-refresh">⟳ 刷新</button>
+    </div>
+
+    <div class="content" id="content"></div>
+
+    <!-- 新建 / 编辑模态框 -->
+    <div class="modal-mask" id="modal-mask">
+        <div class="modal">
+            <h3 id="modal-title">新建计时</h3>
+            <!-- 番茄钟配置（默认隐藏） -->
+            <div id="pomodoro-section" style="display:none;">
+                <label>快捷预设</label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+                    <button class="btn btn-secondary btn-sm" data-pomo-preset="25,5">25 / 5</button>
+                    <button class="btn btn-secondary btn-sm" data-pomo-preset="50,10">50 / 10</button>
+                    <button class="btn btn-secondary btn-sm" data-pomo-preset="90,20">90 / 20</button>
+                </div>
+                <label>每轮工作（分钟）</label>
+                <input type="number" id="pomo-work" value="25" min="1" max="180">
+                <label>每轮休息（分钟）</label>
+                <input type="number" id="pomo-break" value="5" min="1" max="60">
+                <label>长休息（分钟）</label>
+                <input type="number" id="pomo-long-break" value="15" min="1" max="120">
+                <label>每几轮后长休息</label>
+                <input type="number" id="pomo-rounds-before-long" value="4" min="1" max="12">
+                <label>总共几轮</label>
+                <input type="number" id="pomo-total-rounds" value="4" min="1" max="99">
+            </div>
+            <label>名称</label>
+            <input type="text" id="f-name" placeholder="如：泡面 / 专注学习" autocomplete="off">
+
+            <label id="type-label">类型</label>
+            <div class="type-row">
+                <label>
+                    <input type="radio" name="f-type" value="countdown" checked>
+                    <span>⏳ 倒计时</span>
+                </label>
+                <label>
+                    <input type="radio" name="f-type" value="countup">
+                    <span>⏱ 正计时</span>
+                </label>
+            </div>
+
+            <div id="duration-section">
+                <label>时长</label>
+                <div class="duration-row">
+                    <input type="number" id="f-hours" value="0" min="0" max="999">
+                    <span>小时</span>
+                    <input type="number" id="f-minutes" value="3" min="0" max="59">
+                    <span>分</span>
+                    <input type="number" id="f-seconds" value="0" min="0" max="59">
+                    <span>秒</span>
+                </div>
+                <div style="margin-top:6px;font-size:12px;color:#888;">
+                    快捷：
+                    <button class="btn btn-secondary btn-sm" data-preset="60">1 分钟</button>
+                    <button class="btn btn-secondary btn-sm" data-preset="180">3 分钟</button>
+                    <button class="btn btn-secondary btn-sm" data-preset="300">5 分钟</button>
+                    <button class="btn btn-secondary btn-sm" data-preset="1500">25 分钟</button>
+                </div>
+            </div>
+
+            <div id="notify-section">
+                <label>到点提醒语（可选）</label>
+                <input type="text" id="f-notify" placeholder="如：泡面好了">
+            </div>
+
+            <div class="checkbox-row">
+                <input type="checkbox" id="f-calendar" checked>
+                <label for="f-calendar" style="margin:0;font-weight:normal;cursor:pointer;">完成后写入日程</label>
+            </div>
+
+            <div class="status-bar" id="modal-status"></div>
+
+            <div class="modal-btns">
+                <button class="btn-cancel" id="btn-cancel">取消</button>
+                <button class="btn-save" id="btn-save">开始</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="src/renderer/timer.js"></script>
+</body>
+</html>

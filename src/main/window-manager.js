@@ -662,6 +662,49 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
         return { success: true, data: ctx.observationSnapshot };
     });
 
+    ctx.userProfileWindow = ctx.userProfileWindow || null;
+
+    async function openUserProfileWindow() {
+        try {
+            if (ctx.userProfileWindow && !ctx.userProfileWindow.isDestroyed()) {
+                ctx.userProfileWindow.focus();
+                return { success: true };
+            }
+
+            const { screen } = require('electron');
+            const primary = screen.getPrimaryDisplay();
+            const { width, height } = primary.workAreaSize;
+            const W = 460, H = 560;
+            const x = Math.round((width - W) / 2);
+            const y = Math.round((height - H) / 2);
+
+            ctx.userProfileWindow = new deps.BrowserWindow({
+                width: W, height: H, x, y,
+                frame: true,
+                resizable: true,
+                minimizable: true,
+                maximizable: false,
+                title: '用户画像',
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    preload: deps.path.join(deps.basePath, 'preload.js')
+                }
+            });
+            await ctx.userProfileWindow.loadFile(deps.path.join(deps.basePath, 'user-profile.html'));
+            applyCSP(ctx.userProfileWindow);
+
+            ctx.userProfileWindow.on('closed', () => {
+                ctx.userProfileWindow = null;
+            });
+
+            return { success: true };
+        } catch (err) {
+            console.error('[UserProfileWindow] open failed:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
     async function openObservationWindow() {
         try {
             if (ctx.observationWindow && !ctx.observationWindow.isDestroyed()) {
@@ -740,6 +783,157 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
             return { success: true };
         } catch (err) {
             console.error('[FlashcardReview] open failed:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    ctx.timerWindow = ctx.timerWindow || null;
+    ctx.timerBubbleWindow = ctx.timerBubbleWindow || null;
+
+    function openTimerBubble() {
+        if (ctx.timerBubbleWindow && !ctx.timerBubbleWindow.isDestroyed()) {
+            ctx.timerBubbleWindow.show();
+            ctx.timerBubbleWindow.focus();
+            return { success: true };
+        }
+        try {
+            const { screen } = require('electron');
+            const primary = screen.getPrimaryDisplay();
+            const { width, height } = primary.workAreaSize;
+            // 默认位置：右上角
+            let x = width - 220;
+            let y = 60;
+
+            ctx.timerBubbleWindow = new deps.BrowserWindow({
+                width: 200, height: 64,
+                x, y,
+                frame: false,
+                transparent: true,
+                alwaysOnTop: true,
+                resizable: false,
+                minimizable: false,
+                maximizable: false,
+                fullscreenable: false,
+                skipTaskbar: true,
+                focusable: true,
+                hasShadow: false,
+                webPreferences: {
+                    preload: deps.path.join(deps.basePath, 'preload.js'),
+                    nodeIntegration: false,
+                    contextIsolation: true
+                }
+            });
+            ctx.timerBubbleWindow.setAlwaysOnTop(true, 'screen-saver');
+            ctx.timerBubbleWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+            ctx.timerBubbleWindow.loadFile(deps.path.join(deps.basePath, 'timer-bubble.html'));
+            applyCSP(ctx.timerBubbleWindow);
+
+            ctx.timerBubbleWindow.on('closed', () => {
+                ctx.timerBubbleWindow = null;
+            });
+
+            // 异步读取保存的位置
+            (async () => {
+                try {
+                    const cfg = await deps.configManager.loadConfigFile();
+                    const pos = cfg.timerBubble;
+                    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+                        // 边界检查：位置是否在当前屏幕可见范围内
+                        const screen = require('electron').screen;
+                        const displays = screen.getAllDisplays();
+                        let visible = false;
+                        for (const d of displays) {
+                            const b = d.workArea;
+                            if (pos.x >= b.x - 50 && pos.x <= b.x + b.width - 50 &&
+                                pos.y >= b.y - 50 && pos.y <= b.y + b.height - 30) {
+                                visible = true;
+                                break;
+                            }
+                        }
+                        if (visible && ctx.timerBubbleWindow && !ctx.timerBubbleWindow.isDestroyed()) {
+                            ctx.timerBubbleWindow.setPosition(pos.x, pos.y);
+                        }
+                    }
+                } catch (e) {}
+            })();
+
+            return { success: true };
+        } catch (err) {
+            console.error('[TimerBubble] open failed:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    function closeTimerBubble() {
+        if (ctx.timerBubbleWindow && !ctx.timerBubbleWindow.isDestroyed()) {
+            ctx.timerBubbleWindow.close();
+        }
+        return { success: true };
+    }
+
+    function resizeTimerBubble(newHeight) {
+        if (!ctx.timerBubbleWindow || ctx.timerBubbleWindow.isDestroyed()) return { success: false };
+        try {
+            const bounds = ctx.timerBubbleWindow.getBounds();
+            const h = Math.max(40, Math.min(200, newHeight));
+            if (bounds.height !== h) {
+                ctx.timerBubbleWindow.setBounds({ ...bounds, height: h });
+            }
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    }
+
+    function timerBubbleGetPos() {
+        if (!ctx.timerBubbleWindow || ctx.timerBubbleWindow.isDestroyed()) return { x: 0, y: 0 };
+        const [x, y] = ctx.timerBubbleWindow.getPosition();
+        return { x, y };
+    }
+
+    function timerBubbleSetPos(x, y) {
+        if (!ctx.timerBubbleWindow || ctx.timerBubbleWindow.isDestroyed()) return;
+        ctx.timerBubbleWindow.setPosition(Math.round(x), Math.round(y));
+    }
+
+    async function timerBubbleSavePos() {
+        if (!ctx.timerBubbleWindow || ctx.timerBubbleWindow.isDestroyed()) return;
+        const [x, y] = ctx.timerBubbleWindow.getPosition();
+        try {
+            await deps.configManager.saveConfigFile({ timerBubble: { x, y } });
+        } catch (e) {
+            console.warn('[TimerBubble] save pos failed:', e.message);
+        }
+    }
+    
+    function openTimerWindow() {
+        if (ctx.timerWindow && !ctx.timerWindow.isDestroyed()) {
+            ctx.timerWindow.show();
+            ctx.timerWindow.focus();
+            return { success: true };
+        }
+        try {
+            ctx.timerWindow = new deps.BrowserWindow({
+                width: 480,
+                height: 620,
+                title: '倒计时 / 计时',
+                resizable: true,
+                minimizable: true,
+                maximizable: false,
+                icon: deps.path.join(deps.basePath, 'assets', 'app-icon.ico'),
+                webPreferences: {
+                    preload: deps.path.join(deps.basePath, 'preload.js'),
+                    nodeIntegration: false,
+                    contextIsolation: true
+                }
+            });
+            ctx.timerWindow.setMenuBarVisibility(false);
+            ctx.timerWindow.loadFile(deps.path.join(deps.basePath, 'timer.html'));
+            applyCSP(ctx.timerWindow);
+            ctx.timerWindow.on('closed', () => { ctx.timerWindow = null; });
+            return { success: true };
+        } catch (err) {
+            console.error('[TimerWindow] open failed:', err);
             return { success: false, error: err.message };
         }
     }
@@ -933,7 +1127,31 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
 
     ipcMain.handle('set-proactive-state', async (event, enabled) => setProactiveState(enabled));
 
-        return { createSettingsWindow, openChatDialog, setWindowAnchor, openAgentHistoryWindow, openObservationWindow, setProactiveState, openFlashcardReviewWindow, openCalendarWindow };
+    // 注册计时相关 IPC
+    ipcMain.handle('open-timer', async () => openTimerWindow());
+    ipcMain.handle('open-timer-bubble', async () => openTimerBubble());
+    ipcMain.handle('close-timer-bubble', async () => closeTimerBubble());
+    ipcMain.handle('resize-timer-bubble', async (e, h) => resizeTimerBubble(h));
+    ipcMain.handle('timer-bubble-get-pos', async () => timerBubbleGetPos());
+    ipcMain.handle('timer-bubble-set-pos', async (e, x, y) => { timerBubbleSetPos(x, y); return { success: true }; });
+    ipcMain.handle('timer-bubble-save-pos', async () => { await timerBubbleSavePos(); return { success: true }; });
+    ipcMain.handle('open-user-profile', async () => openUserProfileWindow());
+
+
+    return {
+        createSettingsWindow,
+        openChatDialog,
+        setWindowAnchor,
+        openAgentHistoryWindow,
+        openObservationWindow,
+        setProactiveState,
+        openFlashcardReviewWindow,
+        openCalendarWindow,
+        openTimerWindow,
+        openTimerBubble,
+        closeTimerBubble,
+        openUserProfileWindow
+    };
 }
 
 module.exports = { registerWindowHandlers };

@@ -8,6 +8,7 @@ const path = require('path');
 const SYNC_FILES = [
     'todos.json', 'schedules.json', 'reminders.json', 'flashcards.json',
     'chat-memory.json', 'agent-history.json', 'user-profile.json', 'observations.json',
+    'timers.json',
     'companion.json', 'daily-brief.json', 'report-state.json'
 ];
 
@@ -22,6 +23,34 @@ const FILE_KEYS = {
 const GIST_API = 'https://api.github.com/gists';
 const GIST_FILENAME = 'live2dpet-data.json';
 const TOLERANCE_MS = 5000;
+
+/**
+ * 判断一个 JSON 文件里数组是否为空
+ * 返回 'empty' | 'nonempty' | 'unknown'
+ */
+function arrayFillState(content) {
+    if (!content || typeof content !== 'string') return 'unknown';
+    try {
+        const obj = JSON.parse(content);
+        for (const key of ['todos', 'schedules', 'reminders', 'flashcards', 'messages', 'observations']) {
+            if (Array.isArray(obj[key])) {
+                return obj[key].length === 0 ? 'empty' : 'nonempty';
+            }
+        }
+    } catch {}
+    return 'unknown';
+}
+
+/**
+ * 检测是否危险覆盖（本地空/云端非空 或 本地非空/云端空）
+ */
+function isDangerousOverwrite(localContent, remoteContent) {
+    const ls = arrayFillState(localContent);
+    const rs = arrayFillState(remoteContent);
+    if (ls === 'empty' && rs === 'nonempty') return 'local-empty';
+    if (ls === 'nonempty' && rs === 'empty') return 'remote-empty';
+    return null;
+}
 
 class GistSync {
     constructor(deps) {
@@ -270,6 +299,16 @@ class GistSync {
                         }
                         await this._markSynced(`char:${item.filename}`, Date.now());
                     } else {
+                        // ★ 危险覆盖检查
+                        const localContent = local.files[item.filename]?.content;
+                        const remoteContent = remote.files?.[item.filename]?.content;
+                        const danger = isDangerousOverwrite(localContent, remoteContent);
+                        if (danger) {
+                            console.warn(`[GistSync] Skip ${item.action} ${item.filename}: dangerous (${danger})`);
+                            result.skipped.push(item.filename);
+                            continue;
+                        }
+
                         if (item.action === 'push') {
                             finalFiles[item.filename] = {
                                 content: local.files[item.filename].content,
@@ -291,6 +330,18 @@ class GistSync {
             for (const conflict of analysis.conflicts) {
                 const choice = (resolutions || {})[conflict.filename];
                 try {
+                    const _localContent = conflict.isCharacter
+                        ? local.characters[conflict.filename]?.content
+                        : local.files[conflict.filename]?.content;
+                    const _remoteContent = conflict.isCharacter
+                        ? remote.characters?.[conflict.filename]?.content
+                        : remote.files?.[conflict.filename]?.content;
+                    const _danger = isDangerousOverwrite(_localContent, _remoteContent);
+                    if (_danger) {
+                        console.warn(`[GistSync] Skip conflict resolution for ${conflict.filename}: dangerous (${_danger})`);
+                        result.skipped.push(conflict.filename);
+                        continue;
+                    }    
                     if (conflict.isCharacter) {
                         if (choice === 'local') {
                             finalChars[conflict.filename] = {
