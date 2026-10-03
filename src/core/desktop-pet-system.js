@@ -2620,7 +2620,7 @@ ${lines.join('\n')}
         if (rounds === 0) return;
 
         try {
-            const startAt = timer.startedAt;
+            const startAt = timer.firstStartedAt || timer.startedAt;
             const endAt = timer.completedAt || Date.now();
             await window.electronAPI.agentAddSchedule({
                 title: `🍅 番茄钟 - ${rounds} 轮`,
@@ -2670,7 +2670,7 @@ ${lines.join('\n')}
         // 2. 写入日程
         if (timer.writeToCalendar !== false) {
             try {
-                const startAt = timer.startedAt;
+                const startAt = timer.firstStartedAt || timer.startedAt;
                 const endAt = timer.completedAt || Date.now();
                 await window.electronAPI.agentAddSchedule({
                     title: timer.name,

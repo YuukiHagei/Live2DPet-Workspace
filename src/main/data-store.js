@@ -1020,6 +1020,7 @@ class DataStore {
             durationMs: t === 'countdown' ? Number(durationMs) : null,
             state: 'running',
             startedAt: now,
+            firstStartedAt: now,
             elapsedBeforePause: 0,
             pausedAt: null,
             completedAt: null,
@@ -1051,6 +1052,7 @@ class DataStore {
             durationMs: w * 60000,
             state: 'running',
             startedAt: now,
+            firstStartedAt: now,
             elapsedBeforePause: 0,
             pausedAt: null,
             completedAt: null,
@@ -1164,6 +1166,7 @@ class DataStore {
         }
         t.state = 'running';
         t.startedAt = now;
+        t.firstStartedAt = now;
         t.elapsedBeforePause = 0;
         t.pausedAt = null;
         t.completedAt = null;
