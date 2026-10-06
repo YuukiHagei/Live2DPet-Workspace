@@ -26,26 +26,40 @@ class TimerBubble {
             this._handleAction(btn.dataset.action, btn.dataset.id);
         });
 
-        // ========== JS 拖动（不用 -webkit-app-region） ==========
+        // ========== JS 拖动（rAF 节流 + 同步获取起点） ==========
         let dragging = false;
         let startScreenX = 0, startScreenY = 0;
         let startWinX = 0, startWinY = 0;
+        let rafPending = false;
+        let pendingX = 0, pendingY = 0;
 
         this.el.addEventListener('mousedown', async (e) => {
             // 点在按钮上不拖动
             if (e.target.closest('[data-action]')) return;
             if (e.button !== 0) return;
 
-            dragging = true;
+            // ★ 立刻记录鼠标起点，避免被 IPC 延迟拖累
             startScreenX = e.screenX;
             startScreenY = e.screenY;
+
+            // ★ 同步使用上一次已知位置（初始从 0,0 开始也无所谓，getPos 会立即修正）
+            startWinX = this._lastWinX || 0;
+            startWinY = this._lastWinY || 0;
+
+            dragging = true;
             this.el.classList.add('dragging');
 
+            // 异步刷新真实窗口位置（无阻塞）
             try {
                 const pos = await window.electronAPI.timerBubbleGetPos();
+                this._lastWinX = pos.x;
+                this._lastWinY = pos.y;
                 startWinX = pos.x;
                 startWinY = pos.y;
-            } catch { startWinX = 0; startWinY = 0; }
+                // 用最新的鼠标坐标重算起点（避免 await 期间鼠标已移动）
+                startScreenX = e.screenX;
+                startScreenY = e.screenY;
+            } catch {}
 
             e.preventDefault();
         });
@@ -54,7 +68,18 @@ class TimerBubble {
             if (!dragging) return;
             const dx = e.screenX - startScreenX;
             const dy = e.screenY - startScreenY;
-            window.electronAPI.timerBubbleSetPos(startWinX + dx, startWinY + dy);
+            pendingX = startWinX + dx;
+            pendingY = startWinY + dy;
+            this._lastWinX = pendingX;
+            this._lastWinY = pendingY;
+
+            // ★ rAF 节流，每秒最多 60 次 IPC
+            if (rafPending) return;
+            rafPending = true;
+            requestAnimationFrame(() => {
+                rafPending = false;
+                window.electronAPI.timerBubbleSetPos(pendingX, pendingY);
+            });
         });
 
         window.addEventListener('mouseup', () => {
@@ -208,6 +233,9 @@ class TimerBubble {
             h = 12 + shown * 26 + (hasMore ? 18 : 0);
         }
         h = Math.max(44, Math.min(180, h));
+
+        // 拖动中不调整尺寸，避免和拖动冲突
+        if (this.el.classList.contains('dragging')) return;
 
         if (h !== this._lastHeight) {
             this._lastHeight = h;

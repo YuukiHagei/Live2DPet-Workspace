@@ -2588,7 +2588,7 @@ ${lines.join('\n')}
         // === 情况 B：整个番茄钟完成（自然走完最后一轮） ===
         if (transition && transition.finished) {
             const totalMin = p.completedWorkRounds * p.workMin;
-            const text = `🍅 番茄钟完成！共 ${p.completedWorkRounds} 轮，累计专注 ${totalMin} 分钟`;
+            const text = `🍅 ${timer.name} 完成！共 ${p.completedWorkRounds} 轮，累计专注 ${totalMin} 分钟`;
             this.pendingMessage = { text, isUserReply: false };
             this._processQueue();
             await this._writePomodoroSummary(timer);
@@ -2601,7 +2601,7 @@ ${lines.join('\n')}
             : (p.completedWorkRounds || 0);
         if (completedRounds > 0) {
             const totalMin = completedRounds * p.workMin;
-            const text = `🍅 番茄钟已结束，完成 ${completedRounds} 轮，累计专注 ${totalMin} 分钟`;
+            const text = `🍅 ${timer.name} 已结束，完成 ${completedRounds} 轮，累计专注 ${totalMin} 分钟`;
             this.pendingMessage = { text, isUserReply: false };
             this._processQueue();
             await this._writePomodoroSummary(timer);
@@ -2623,7 +2623,7 @@ ${lines.join('\n')}
             const startAt = timer.firstStartedAt || timer.startedAt;
             const endAt = timer.completedAt || Date.now();
             await window.electronAPI.agentAddSchedule({
-                title: `🍅 番茄钟 - ${rounds} 轮`,
+                title: `🍅 ${timer.name} - ${rounds} 轮`,
                 startAt,
                 endAt,
                 location: '',

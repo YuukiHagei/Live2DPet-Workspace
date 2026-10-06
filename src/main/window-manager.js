@@ -823,6 +823,10 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
                     contextIsolation: true
                 }
             });
+            // 关闭贴边动画，避免拖动时视觉"变形"
+            try {
+                ctx.timerBubbleWindow.setWindowButtonVisibility?.(false);
+            } catch {}
             ctx.timerBubbleWindow.setAlwaysOnTop(true, 'screen-saver');
             ctx.timerBubbleWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
             ctx.timerBubbleWindow.loadFile(deps.path.join(deps.basePath, 'timer-bubble.html'));
@@ -893,7 +897,14 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
 
     function timerBubbleSetPos(x, y) {
         if (!ctx.timerBubbleWindow || ctx.timerBubbleWindow.isDestroyed()) return;
-        ctx.timerBubbleWindow.setPosition(Math.round(x), Math.round(y));
+        // ★ 用 setBounds 显式带上当前宽高，防止 setPosition 偶发引起尺寸变化
+        const b = ctx.timerBubbleWindow.getBounds();
+        ctx.timerBubbleWindow.setBounds({
+            x: Math.round(x),
+            y: Math.round(y),
+            width: b.width,
+            height: b.height
+        });
     }
 
     async function timerBubbleSavePos() {
