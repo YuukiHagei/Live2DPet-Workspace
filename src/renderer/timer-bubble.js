@@ -34,46 +34,33 @@ class TimerBubble {
         let pendingX = 0, pendingY = 0;
 
         this.el.addEventListener('mousedown', async (e) => {
-            // 点在按钮上不拖动
             if (e.target.closest('[data-action]')) return;
             if (e.button !== 0) return;
+            e.preventDefault();
 
-            // ★ 立刻记录鼠标起点，避免被 IPC 延迟拖累
-            startScreenX = e.screenX;
-            startScreenY = e.screenY;
-
-            // ★ 同步使用上一次已知位置（初始从 0,0 开始也无所谓，getPos 会立即修正）
-            startWinX = this._lastWinX || 0;
-            startWinY = this._lastWinY || 0;
+            // 先同步拿窗口位置，再进入拖动状态
+            let pos;
+            try {
+                pos = await window.electronAPI.timerBubbleGetPos();
+            } catch {
+                return;
+            }
 
             dragging = true;
+            startScreenX = e.screenX;
+            startScreenY = e.screenY;
+            startWinX = pos.x;
+            startWinY = pos.y;
             this.el.classList.add('dragging');
-
-            // 异步刷新真实窗口位置（无阻塞）
-            try {
-                const pos = await window.electronAPI.timerBubbleGetPos();
-                this._lastWinX = pos.x;
-                this._lastWinY = pos.y;
-                startWinX = pos.x;
-                startWinY = pos.y;
-                // 用最新的鼠标坐标重算起点（避免 await 期间鼠标已移动）
-                startScreenX = e.screenX;
-                startScreenY = e.screenY;
-            } catch {}
-
-            e.preventDefault();
         });
 
         window.addEventListener('mousemove', (e) => {
             if (!dragging) return;
             const dx = e.screenX - startScreenX;
             const dy = e.screenY - startScreenY;
-            pendingX = startWinX + dx;
-            pendingY = startWinY + dy;
-            this._lastWinX = pendingX;
-            this._lastWinY = pendingY;
+            pendingX = Math.round(startWinX + dx);
+            pendingY = Math.round(startWinY + dy);
 
-            // ★ rAF 节流，每秒最多 60 次 IPC
             if (rafPending) return;
             rafPending = true;
             requestAnimationFrame(() => {

@@ -789,6 +789,7 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
 
     ctx.timerWindow = ctx.timerWindow || null;
     ctx.timerBubbleWindow = ctx.timerBubbleWindow || null;
+    ctx.timerBubbleHeight = 64;
 
     function openTimerBubble() {
         if (ctx.timerBubbleWindow && !ctx.timerBubbleWindow.isDestroyed()) {
@@ -823,6 +824,7 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
                     contextIsolation: true
                 }
             });
+            ctx.timerBubbleHeight = 64;
             // 关闭贴边动画，避免拖动时视觉"变形"
             try {
                 ctx.timerBubbleWindow.setWindowButtonVisibility?.(false);
@@ -878,11 +880,15 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
     function resizeTimerBubble(newHeight) {
         if (!ctx.timerBubbleWindow || ctx.timerBubbleWindow.isDestroyed()) return { success: false };
         try {
-            const bounds = ctx.timerBubbleWindow.getBounds();
             const h = Math.max(40, Math.min(200, newHeight));
-            if (bounds.height !== h) {
-                ctx.timerBubbleWindow.setBounds({ ...bounds, height: h });
-            }
+            if (ctx.timerBubbleHeight === h) return { success: true };
+            ctx.timerBubbleHeight = h;
+            const [x, y] = ctx.timerBubbleWindow.getPosition();
+            ctx.timerBubbleWindow.setBounds({
+                x, y,
+                width: 200,
+                height: h
+            });
             return { success: true };
         } catch (e) {
             return { success: false, error: e.message };
@@ -897,13 +903,13 @@ function registerWindowHandlers(ctx, ipcMain, deps) {
 
     function timerBubbleSetPos(x, y) {
         if (!ctx.timerBubbleWindow || ctx.timerBubbleWindow.isDestroyed()) return;
-        // ★ 用 setBounds 显式带上当前宽高，防止 setPosition 偶发引起尺寸变化
-        const b = ctx.timerBubbleWindow.getBounds();
+        // 固定宽度 200，高度用主进程维护的 ctx.timerBubbleHeight
+        // 避免 getBounds() 在高 DPI 拖动期间返回错误值污染尺寸
         ctx.timerBubbleWindow.setBounds({
             x: Math.round(x),
             y: Math.round(y),
-            width: b.width,
-            height: b.height
+            width: 200,
+            height: ctx.timerBubbleHeight || 64
         });
     }
 
