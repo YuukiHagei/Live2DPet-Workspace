@@ -685,8 +685,17 @@ class DataStore {
     }
 
     getDueCards({ limit = 20, subject } = {}) {
-        const now = Date.now();
-        let list = this.flashcards.filter(c => c.dueAt <= now);
+        // 按天比较：dueAt 落在今天或更早就视为待复习（兼容老数据的具体时刻 dueAt）
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayStartTs = todayStart.getTime();
+
+        let list = this.flashcards.filter(c => {
+            if (!c.dueAt) return false;
+            const dayStart = new Date(c.dueAt);
+            dayStart.setHours(0, 0, 0, 0);
+            return dayStart.getTime() <= todayStartTs;
+        });
         if (subject) list = list.filter(c => c.subject === subject);
         list.sort((a, b) => a.dueAt - b.dueAt);
         return list.slice(0, limit);
@@ -732,7 +741,11 @@ class DataStore {
             if (rating === 'easy') newInterval = Math.round(newInterval * 1.3);
         }
 
-        const dueAt = Date.now() + newInterval * 86400000;
+        // 归一化到"应复习日"的 00:00，让当天任何时候都能复习
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + newInterval);
+        dueDate.setHours(0, 0, 0, 0);
+        const dueAt = dueDate.getTime();
 
         // 保存
         target.easeFactor = Number(newEF.toFixed(3));

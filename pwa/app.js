@@ -523,7 +523,15 @@
     function renderFlashcards() {
         const cards = parsed.flashcards?.flashcards || [];
         const now = Date.now();
-        const dueCards = cards.filter(c => (c.dueAt || 0) <= now);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayStartTs = todayStart.getTime();
+        const dueCards = cards.filter(c => {
+            if (!c.dueAt) return false;
+            const dayStart = new Date(c.dueAt);
+            dayStart.setHours(0, 0, 0, 0);
+            return dayStart.getTime() <= todayStartTs;
+        });
 
         if (cards.length === 0) {
             $content.innerHTML = '<div class="empty"><div class="emoji">📇</div>没有卡片</div>';
