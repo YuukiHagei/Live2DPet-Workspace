@@ -344,7 +344,7 @@ class TimerApp {
         if (t && t.pomodoroMode && t.pomodoro) {
             this.el.modalTitle.textContent = '🍅 编辑番茄钟';
             this.el.fName.value = t.name;
-            this.el.fName.disabled = true;  // 名称不可改
+            this.el.fName.disabled = false;  // 名称可改
             document.getElementById('duration-section').style.display = 'none';
             document.getElementById('notify-section').style.display = 'none';
             const typeRowP = this.el.modalMask.querySelector('.type-row');
@@ -478,9 +478,10 @@ class TimerApp {
             return;
         }
 
-        // 编辑番茄钟（只改时长，名称不改）
+        // 编辑番茄钟（名称和时长都可改）
         const editingTimer = this.editing ? this.timers.find(x => x.id === this.editing) : null;
         if (editingTimer && editingTimer.pomodoroMode && editingTimer.pomodoro) {
+            const newName = this.el.fName.value.trim() || editingTimer.name;
             const workMin = Number(document.getElementById('pomo-work').value) || 25;
             const breakMin = Number(document.getElementById('pomo-break').value) || 5;
             const longBreakMin = Number(document.getElementById('pomo-long-break').value) || 15;
@@ -489,7 +490,7 @@ class TimerApp {
             try {
                 await window.electronAPI.timerUpdate({
                     id: editingTimer.id,
-                    name: editingTimer.name,
+                    name: newName,
                     pomodoro: { workMin, breakMin, longBreakMin, roundsBeforeLong, totalRounds }
                 });
                 this.closeModal();
