@@ -2427,7 +2427,7 @@ ${lines.join('\n')}
         const timeStr = `${now.getFullYear()}年${String(now.getMonth() + 1).padStart(2, '0')}月${String(now.getDate()).padStart(2, '0')}日 星期${weekdays[now.getDay()]} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         let baseSys = '你是一个能调用工具的智能助手，帮助用户完成任务。回答用中文，简洁直接。';
-        baseSys += `\n\n【当前时间】\n现在是 ${timeStr}。你可以直接使用这个时间。用户问"现在几点"、"今天几号"、"星期几"时直接回答，不要说你不知道。`;
+        baseSys += `\n\n【当前时间｜系统权威注入】\n现在是 ${timeStr}。\n规则：直接使用这个时间回答；严禁根据历史消息推测当前时间；严禁说不知道时间。`;
         baseSys += '\n\n【关于历史】你的历史工具调用记录可能被摘要压缩，因此你不一定记得每轮具体调用了什么工具。如果用户提到"之前"或"刚才"做过什么，不要轻易否认（例如不要说"我从没执行过搜索"）。不确定时说明"我记不清具体细节，但可以重新执行"，或直接重新执行。';
         if (this.companionStats) {
             baseSys += `\n\n【陪伴信息】你已经陪伴用户 ${this.companionStats.totalDays} 天。`;

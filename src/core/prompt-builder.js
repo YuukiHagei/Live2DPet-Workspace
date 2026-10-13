@@ -130,7 +130,15 @@ class PetPromptBuilder {
         const hh = String(now.getHours()).padStart(2, '0');
         const mi = String(now.getMinutes()).padStart(2, '0');
         const weekday = weekdays[now.getDay()];
-        return `【当前时间】\n现在是 ${yyyy}年${mm}月${dd}日 星期${weekday} ${hh}:${mi}。\n你可以直接使用这个时间。用户问"现在几点"、"今天几号"、"星期几"时，直接根据这个回答，不要说你不知道。`;
+        return `【当前时间｜系统权威注入】
+现在是 ${yyyy}年${mm}月${dd}日 星期${weekday} ${hh}:${mi}。
+
+规则（必须严格遵守）：
+1. 这是系统实时提供的**权威时间**，你必须直接使用。
+2. 用户问"现在几点 / 今天几号 / 星期几"时，**直接回答这个时间**。
+3. **绝对禁止**根据历史消息推测当前时间。历史消息里出现的"早上"、"晚安"、"09:09"等字样只是过去某时刻的记录，**不代表当前时间**。
+4. **绝对禁止**说"我不知道时间"或反问用户现在几点。
+5. 如果历史消息的时间看起来和上面的时间冲突，**以上面的时间为准**。`;
     }
 
     getAppDetectionPrompt(appName) {
