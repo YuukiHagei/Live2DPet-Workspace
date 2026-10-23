@@ -317,6 +317,13 @@ const I18N = {
     'timer.notify.title': '⏱ Default Timer Notification',
     'timer.notify.hint': 'Used when creating a countdown without a custom notification message.',
     'timer.notify.label': 'Default notification text',
+    'backup.title': 'Local Backup',
+    'backup.hint': 'Pack todos, schedules, reminders, flashcards, timers, memory and character cards into a single JSON file. Fully offline — no account needed. Import it on a new device.',
+    'backup.includeConfig': 'Include settings as well (contains API keys — do not share this file)',
+    'backup.export': '📦 Export Backup',
+    'backup.import': '📥 Import from Backup',
+    'backup.restart': '🔄 Restart App',
+    'backup.importHint': 'Import overwrites local files with the same names and backs them up to data\\.backup\\ first. A restart is required to take effect (models and voicevox_core are not included).',
   },
   zh: {
     'lang.label': '语言',
@@ -632,6 +639,13 @@ const I18N = {
     'timer.notify.title': '⏱ 计时默认提醒语',
     'timer.notify.hint': '创建倒计时时，若未填写自定义提醒语，将使用这里的内容。',
     'timer.notify.label': '默认到点提醒语',
+    'backup.title': '本地备份',
+    'backup.hint': '把所有待办、日程、提醒、复习卡片、计时器、记忆和角色卡打包成一个 JSON 文件，完全离线，不需要账号。换设备时在新电脑上导入即可。',
+    'backup.includeConfig': '同时导出设置（含 API 密钥，请勿分享该文件）',
+    'backup.export': '📦 导出备份',
+    'backup.import': '📥 从备份导入',
+    'backup.restart': '🔄 重启应用',
+    'backup.importHint': '导入会覆盖本地同名文件，覆盖前自动备份到 data\\.backup\\；导入后需要重启才生效（不含模型文件和 voicevox_core）。',
   },
   ja: {
     'lang.label': '言語',
@@ -947,6 +961,13 @@ const I18N = {
     'timer.notify.title': '⏱ タイマー既定の通知メッセージ',
     'timer.notify.hint': 'カスタム通知を入力せずにカウントダウンを作成した場合、この内容が使用されます。',
     'timer.notify.label': '既定の通知メッセージ',
+    'backup.title': 'ローカルバックアップ',
+    'backup.hint': 'TODO、スケジュール、リマインダー、フラッシュカード、タイマー、記憶、キャラクターカードを 1 つの JSON ファイルにまとめます。完全オフラインで、アカウントは不要です。新しい端末でインポートできます。',
+    'backup.includeConfig': '設定も同時に出力する（API キーを含むため、このファイルは共有しないでください）',
+    'backup.export': '📦 バックアップを出力',
+    'backup.import': '📥 バックアップから復元',
+    'backup.restart': '🔄 アプリを再起動',
+    'backup.importHint': 'インポートは同名のローカルファイルを上書きします（上書き前に data\\.backup\\ へ自動バックアップ）。反映には再起動が必要です（モデルと voicevox_core は含みません）。',
   }
 };
 

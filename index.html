@@ -680,6 +680,30 @@
         <h2 data-i18n="cloud.lastSync">上次同步</h2>
         <p class="model-info" id="cloud-last-sync" style="margin:0;">—</p>
     </div>
+
+    <!-- ========== 本地备份（导出 / 导入） ========== -->
+    <div class="card">
+        <h2 data-i18n="backup.title">本地备份</h2>
+        <p class="model-info" data-i18n="backup.hint">
+            把所有待办、日程、提醒、复习卡片、计时器、记忆和角色卡打包成一个 JSON 文件，完全离线，不需要账号。换设备时在新电脑上导入即可。
+        </p>
+        <p class="model-info" id="backup-info" style="margin:0 0 8px;">—</p>
+        <label style="display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <input type="checkbox" id="backup-include-config">
+            <span data-i18n="backup.includeConfig">同时导出设置（含 API 密钥，请勿分享该文件）</span>
+        </label>
+        <div class="btn-row">
+            <button class="btn btn-primary" id="btn-backup-export" data-i18n="backup.export">📦 导出备份</button>
+            <button class="btn btn-secondary" id="btn-backup-import" data-i18n="backup.import">📥 从备份导入</button>
+        </div>
+        <div class="btn-row" style="margin-top:6px;">
+            <button class="btn btn-secondary btn-sm" id="btn-backup-restart" data-i18n="backup.restart">🔄 重启应用</button>
+        </div>
+        <p style="font-size:11px;color:#888;margin-top:4px;" data-i18n="backup.importHint">
+            导入会覆盖本地同名文件，覆盖前自动备份到 data\.backup\；导入后需要重启才生效（不含模型文件和 voicevox_core）。
+        </p>
+        <div class="status" id="backup-status"></div>
+    </div>
     </div>
 
     <script src="src/i18n/locales.js"></script>

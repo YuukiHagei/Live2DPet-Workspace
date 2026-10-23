@@ -37,6 +37,16 @@
 
 - 113 tests, 12 suites, all pass
 
+### Phase 3: 本地备份（导出 / 导入）
+
+- 单文件 JSON 备份：待办 / 日程 / 提醒 / 复习卡片 / 计时器 / 对话记忆 / Agent 历史 / 用户画像 / 角色卡 / 周报
+- `config.json`（含 API 密钥）默认不导出，勾选「同时导出设置」才包含
+- 导入前把将被覆盖的文件备份到 `data/.backup/import-<时间戳>/`（同秒多次导入自动加 `-2` 后缀）
+- 只覆盖备份里出现的文件，本地多余文件保持不动；写入走 `.import-tmp` + rename
+- 空备份拦截（防止用空文件清空数据）、文件名白名单（防路径穿越）、schema 版本检查
+- 导入后冻结 DataStore 内存态并提示重启，避免 500ms debounce 把旧数据写回去
+- 回归测试：`tests/test-data-backup.js`（11 项，直接 `node tests/test-data-backup.js` 可跑）
+
 ## TODO
 
 - [ ] 自定义图标: PNG→ICO 转换, BrowserWindow.setIcon()

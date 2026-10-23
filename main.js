@@ -33,6 +33,7 @@ const { registerTTSIPC } = require('./src/main/tts-ipc');
 const { registerEnhanceIPC } = require('./src/main/enhance-ipc');
 const { registerDefaultAudioIPC } = require('./src/main/default-audio-ipc');
 const { registerModelImport } = require('./src/main/model-import');
+const { registerDataBackupIPC } = require('./src/main/data-backup-ipc');
 const { createPathUtils } = require('./src/utils/path-utils');
 const { TTSService } = require('./src/core/tts-service');
 const { TranslationService } = require('./src/core/translation-service');
@@ -333,6 +334,15 @@ app.whenReady().then(async () => {
     ctx.companionTracker = new CompanionTracker(dataDir);
     // 注册待办/日程 IPC（必须在 dataStore 初始化之后）
     registerAgentToolsIPC(ctx, ipcMain, { dataStore, openTimerBubble });
+    // 注册本地备份 IPC（导出/导入，必须在 dataStore 初始化之后）
+    registerDataBackupIPC(ctx, ipcMain, {
+        app,
+        dialog,
+        dataDir,
+        promptsDir,
+        configPath: path.join(app.getPath('userData'), 'config.json'),
+        dataStore
+    });
     // 每日简报
     ctx.dailyBrief = new DailyBrief({
         configManager,

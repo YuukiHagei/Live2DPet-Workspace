@@ -1910,6 +1910,102 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     }
 });
 
+// ========== 本地备份：导出 / 导入 ==========
+// 不使用 showStatus：备份结果带路径和统计，需要一直留在屏幕上，不能被 5 秒后清掉
+function setBackupStatus(msg, type) {
+    const el = document.getElementById('backup-status');
+    if (!el) return;
+    el.className = 'status ' + (type || '');
+    el.style.whiteSpace = 'pre-line';
+    el.textContent = msg;
+}
+
+async function loadBackupInfo() {
+    const el = document.getElementById('backup-info');
+    if (!el || !window.electronAPI?.dataBackupInfo) return;
+    try {
+        const r = await window.electronAPI.dataBackupInfo();
+        if (!r?.success) { el.textContent = '—'; return; }
+        const kb = Math.max(1, Math.round((r.totalBytes || 0) / 1024));
+        const extras = [];
+        if (r.promptCount) extras.push(`角色卡 ${r.promptCount}`);
+        if (r.reportCount) extras.push(`周报 ${r.reportCount}`);
+        el.style.whiteSpace = 'pre-line';
+        el.textContent = `数据目录：${r.dataDir}\n${r.summary || ''}`
+            + `${extras.length ? ' · ' + extras.join(' · ') : ''}`
+            + ` ｜ 共 ${r.fileCount} 个文件 / ${kb} KB`;
+    } catch (err) {
+        console.warn('[Backup UI] info failed:', err);
+        el.textContent = '—';
+    }
+}
+
+document.getElementById('btn-backup-export')?.addEventListener('click', async () => {
+    const includeConfig = !!document.getElementById('backup-include-config')?.checked;
+    setBackupStatus('📦 正在打包，请在弹出的对话框里选择保存位置...', 'info');
+    try {
+        const r = await window.electronAPI.dataBackupExport({ includeConfig });
+        if (r?.canceled) { setBackupStatus(''); return; }
+        if (!r?.success) {
+            setBackupStatus('❌ 导出失败：' + (r?.error || '未知错误'), 'error');
+            return;
+        }
+        const kb = Math.max(1, Math.round(r.bytes / 1024));
+        const extras = [];
+        if (r.promptCount) extras.push(`角色卡 ${r.promptCount}`);
+        if (r.includedConfig) extras.push('含设置');
+        setBackupStatus(
+            `✅ 已导出：${r.path}（${kb} KB）\n`
+            + `内容：${r.summary || '（空）'}${extras.length ? ' · ' + extras.join(' · ') : ''}`,
+            'success'
+        );
+        await loadBackupInfo();
+    } catch (err) {
+        setBackupStatus('❌ 导出失败：' + err.message, 'error');
+    }
+});
+
+document.getElementById('btn-backup-import')?.addEventListener('click', async () => {
+    setBackupStatus('📥 正在打开备份文件...', 'info');
+    try {
+        const r = await window.electronAPI.dataBackupImport();
+        if (r?.canceled) { setBackupStatus(''); return; }
+        if (!r?.success) {
+            setBackupStatus('❌ 导入失败：' + (r?.error || '未知错误'), 'error');
+            return;
+        }
+        setBackupStatus(
+            `✅ 导入完成：${r.summary || '（空）'}\n`
+            + `已写入：${(r.written || []).join('、') || '（无）'}\n`
+            + `原数据备份在：${r.backupDir}\n`
+            + (r.restarted
+                ? '正在重启应用...'
+                : '⚠️ 需要点「重启应用」（或手动关掉再打开）才会生效，否则界面显示的还是旧数据。'),
+            'success'
+        );
+        await loadBackupInfo();
+    } catch (err) {
+        setBackupStatus('❌ 导入失败：' + err.message, 'error');
+    }
+});
+
+document.getElementById('btn-backup-restart')?.addEventListener('click', async () => {
+    if (!confirm('确定立即重启应用？\n\n未保存的对话内容会丢失。')) return;
+    await window.electronAPI.dataBackupRestart();
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'cloud') {
+        btn.addEventListener('click', () => loadBackupInfo());
+    }
+});
+
+// 初始化后延迟加载一次
+setTimeout(() => {
+    const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+    if (activeTab === 'cloud') loadBackupInfo();
+}, 900);
+
 // 初始化后延迟加载一次
 setTimeout(() => {
     const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;

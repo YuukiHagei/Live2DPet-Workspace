@@ -1,5 +1,41 @@
 # Changelog
 
+## v2.1.1 — Local Backup (Export / Import)
+
+- New "Local Backup" card in the Cloud tab: export all data to a single JSON file and import it on another device — fully offline, no account needed
+- Covers todos, schedules, reminders, flashcards, timers, chat memory, agent history, user profile, character cards and weekly reports
+- `config.json` (API keys) is excluded by default; include it only by ticking the checkbox
+- Import backs up the files it is about to overwrite to `data/.backup/import-<timestamp>/`, and only touches files present in the backup
+- Safety: empty backups are rejected, file names are allow-listed (no path traversal), newer schema versions are refused, and the in-memory store is frozen after import so stale data cannot overwrite the result
+- Import requires a restart; a "Restart App" button is provided
+- Tests: `tests/test-data-backup.js` (11 cases)
+
+<details>
+<summary>中文</summary>
+
+- 云同步页新增「本地备份」卡片：一键把全部数据导出成单个 JSON 文件，在另一台设备上导入即可，完全离线、不需要账号
+- 覆盖待办、日程、提醒、复习卡片、计时器、对话记忆、Agent 历史、用户画像、角色卡与周报
+- 默认不导出 `config.json`（含 API 密钥），勾选「同时导出设置」才包含
+- 导入前把将被覆盖的文件备份到 `data/.backup/import-<时间戳>/`，且只覆盖备份里出现的文件
+- 安全保护：空备份拒绝导入、文件名白名单（防路径穿越）、拒绝更新版本的 schema、导入后冻结内存态防止旧数据盖回
+- 导入后需重启生效，界面提供「重启应用」按钮
+- 测试：`tests/test-data-backup.js`（11 项）
+
+</details>
+
+<details>
+<summary>日本語</summary>
+
+- クラウドタブに「ローカルバックアップ」カードを追加：全データを 1 つの JSON ファイルに書き出し、別端末でインポートできます。完全オフライン、アカウント不要
+- TODO、スケジュール、リマインダー、フラッシュカード、タイマー、会話記憶、エージェント履歴、ユーザープロフィール、キャラクターカード、週報が対象
+- `config.json`（API キーを含む）は既定では出力せず、チェックした場合のみ含みます
+- インポート前に上書き対象のファイルを `data/.backup/import-<タイムスタンプ>/` へ退避し、バックアップに存在するファイルだけを上書き
+- 安全策：空のバックアップは拒否、ファイル名はホワイトリスト（パス traversal 防止）、新しい schema は拒否、インポート後はメモリ上の状態を凍結して古いデータの書き戻しを防止
+- 反映には再起動が必要で、画面に「アプリを再起動」ボタンを用意
+- テスト：`tests/test-data-backup.js`（11 件）
+
+</details>
+
 ## v2.0.0 — Interaction & Visual Memory
 
 - Interaction system: click/touch/drag/swipe/resize detection on pet, events injected into AI context

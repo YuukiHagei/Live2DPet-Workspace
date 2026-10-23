@@ -52,6 +52,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showSettings: () => ipcRenderer.invoke('show-settings'),
     loadConfig: () => ipcRenderer.invoke('load-config'),
     saveConfig: (data) => ipcRenderer.invoke('save-config', data),
+    // 本地备份：导出 / 导入（不经过网络，单文件 JSON）
+    dataBackupInfo: () => ipcRenderer.invoke('data-backup-info'),
+    dataBackupExport: (options) => ipcRenderer.invoke('data-backup-export', options),
+    dataBackupImport: () => ipcRenderer.invoke('data-backup-import'),
+    dataBackupRestart: () => ipcRenderer.invoke('data-backup-restart'),
     getCursorPosition: () => ipcRenderer.invoke('get-cursor-position'),
     showPetContextMenu: () => ipcRenderer.invoke('show-pet-context-menu'),
     getWindowAnchor: () => ipcRenderer.invoke('get-window-anchor'),
