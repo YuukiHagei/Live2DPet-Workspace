@@ -65,6 +65,7 @@ function findElectron() {
 function printRecentWerEvents() {
     const ps = spawnSync('powershell.exe', [
         '-NoProfile', '-Command',
+        '[Console]::OutputEncoding=[Text.Encoding]::UTF8; ' +
         "Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddHours(-6)} -ErrorAction SilentlyContinue | " +
         "Where-Object { $_.Message -match 'electron' } | Select-Object -First 3 | " +
         "ForEach-Object { $_.TimeCreated.ToString('HH:mm:ss') + '  ' + (($_.Message -split \"`n\")[0]) }"
@@ -126,10 +127,15 @@ record(elevated ? '当前进程是管理员权限' : '当前进程是普通用�
 
 const avQuery = spawnSync('powershell.exe', [
     '-NoProfile', '-Command',
+    '[Console]::OutputEncoding=[Text.Encoding]::UTF8; ' +
     "Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue | ForEach-Object { $_.displayName }"
 ], { encoding: 'utf8', timeout: 15000, windowsHide: true });
 const avList = (avQuery.stdout || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-record(avList.length ? '检测到安全软件' : '未检测到已注册的安全软件', null, avList.join('、') || '');
+if (avQuery.error) {
+    record('读取安全软件列表失败', null, avQuery.error.message);
+} else {
+    record(avList.length ? '检测到安全软件' : '未检测到已注册的安全软件', null, avList.join('、') || '');
+}
 if (avList.length) {
     console.log('    若 Electron 起不来，先把 electron.exe 或整个项目目录加白 / 临时关闭防护再试一次。');
 }
@@ -182,13 +188,73 @@ if (!QUICK) {
     }
     try { fs.rmSync(dataDir, { recursive: true, force: true }); } catch {}
 
+    console.log('\n--- 6. 关掉沙箱对照（--no-sandbox + --enable-logging）---');
+    const noSandboxDir = fs.mkdtempSync(path.join(os.tmpdir(), 'l2d-doctor-nosandbox-'));
+    const noSandbox = run(electronPath, [
+        '.', '--no-sandbox', '--enable-logging', `--user-data-dir=${noSandboxDir}`
+    ], APP_TIMEOUT);
+    const noSandboxAlive = noSandbox.signal === 'SIGTERM' || noSandbox.ms >= APP_TIMEOUT - 1500;
+    record('--no-sandbox 下能启动', noSandbox.code === 0 || noSandboxAlive,
+        noSandboxAlive
+            ? `持续运行 ${Math.round(noSandbox.ms / 1000)}s（超时后已关闭）`
+            : `退出码 ${hex32(noSandbox.code)}，耗时 ${noSandbox.ms}ms`);
+    const noSandboxLog = [noSandbox.stdout, noSandbox.stderr].filter(Boolean).join('\n').trim();
+    if (noSandboxLog) {
+        console.log('  --- 输出（前 30 行，含 Chromium 自己的报错）---');
+        console.log(noSandboxLog.split('\n').slice(0, 30).map((l) => '  ' + l).join('\n'));
+    } else {
+        console.log('  （没有任何输出：说明在加载应用代码之前就退出了）');
+    }
+    try { fs.rmSync(noSandboxDir, { recursive: true, force: true }); } catch {}
+
+    console.log('\n--- 7. Windows 漏洞防护（「强制 ASLR」是 Chromium 秒崩 0x80000003 的常见原因）---');
+    const mit = spawnSync('powershell.exe', [
+        '-NoProfile', '-Command',
+        '[Console]::OutputEncoding=[Text.Encoding]::UTF8; ' +
+        '$sys = Get-ProcessMitigation -System; ' +
+        "'System.ForceRelocateImages=' + $sys.Aslr.ForceRelocateImages; " +
+        "'System.BottomUp=' + $sys.Aslr.BottomUp; " +
+        '$app = Get-ProcessMitigation -Name electron.exe -ErrorAction SilentlyContinue; ' +
+        "if ($app) { 'App.ForceRelocateImages=' + $app.Aslr.ForceRelocateImages; 'App.BottomUp=' + $app.Aslr.BottomUp } else { 'App=none' }"
+    ], { encoding: 'utf8', timeout: 20000, windowsHide: true });
+    const mitText = (mit.stdout || '').trim();
+    if (mit.error) {
+        record('读取进程缓解策略失败', null, mit.error.message);
+    } else if (!mitText) {
+        record('读取进程缓解策略', null, 'PowerShell 无输出（可能需要管理员权限）');
+    } else {
+        const kv = {};
+        for (const line of mitText.split(/\r?\n/)) {
+            const m = /^([\w.]+)=(.*)$/.exec(line.trim());
+            if (m) kv[m[1]] = m[2].trim();
+        }
+        const sysForce = kv['System.ForceRelocateImages'];
+        const sysBottom = kv['System.BottomUp'];
+        const appForce = kv['App.ForceRelocateImages'];
+        const hasOn = (v) => !!v && !/^(NOTSET|OFF|FALSE|0)$/i.test(v);
+        console.log(`  系统 强制 ASLR (ForceRelocateImages) : ${sysForce || '未知'}`);
+        console.log(`  系统 自底向上 ASLR (BottomUp)      : ${sysBottom || '未知'}`);
+        console.log(`  electron.exe 专用策略             : ${appForce === undefined ? '未配置' : appForce}`);
+        if (hasOn(sysForce) || hasOn(appForce)) {
+            record('强制 ASLR 已开启（会打断 Chromium 启动）', false,
+                '关掉：Windows 安全中心 → 应用和浏览器控制 → 漏洞防护 → 程序设置 → 添加 electron.exe → 取消「强制随机化映像」');
+        } else {
+            record('强制 ASLR 未开启（不是崩溃原因）', true, `System=${sysForce || 'NOTSET'}`);
+        }
+    }
+
     console.log('\n--- 结论 ---');
     if (electronBroken && !probeOk) {
-        console.log('Electron 二进制本身起不来（与项目代码无关）。可按顺序尝试：');
-        console.log('  1) 关掉杀毒/安全软件的「勒索软件防护」或把 electron.exe 加白；');
-        console.log('  2) 用管理员身份运行一次 cmd 再试（反之：如果是管理员，请改用普通权限）；');
-        console.log(`  3) 换一个目录安装依赖：重新执行 npm install；`);
-        console.log(`  4) 临时验证是否沙箱问题：node launch.js --no-sandbox`);
+        console.log('Electron 二进制本身起不来（与项目代码无关）。');
+        if (noSandbox.code === 0 || noSandboxAlive) {
+            console.log('→ 关闭 Chromium 沙箱后可以启动：问题在系统的「沙箱/ASLR/安全软件」这一层，不是项目代码。');
+            console.log('  优先按第 7 节处理「强制 ASLR」；其次把 electron.exe 加白。');
+        } else if (noSandboxLog) {
+            console.log('→ 关沙箱后仍然起不来，但这次有输出：把第 6 节的输出贴出来即可定位。');
+        } else {
+            console.log('→ 关沙箱后依旧无输出退出：先按第 7 节处理 ASLR，再试安全软件加白。');
+        }
+        console.log('  参考顺序：1) 关「强制 ASLR」 2) 安全软件加白 3) 换普通/管理员权限 4) 重装 electron');
         printRecentWerEvents();
     } else if (!electronBroken && probeOk && !appOk) {
         console.log('Electron 正常、最小应用正常，但本项目启动失败 —— 问题在本项目代码。');
