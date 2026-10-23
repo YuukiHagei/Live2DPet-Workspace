@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.2.2 — Startup Doctor
+
+- New `npm run doctor` (or `node tools/doctor.js`): collects everything needed to diagnose a launch failure — env vars that break Electron, binary presence/size, `electron --version`, a minimal Electron app, the actual project, elevation, registered antivirus, and recent Windows crash events — then prints a verdict
+- Runs the app with an isolated `--user-data-dir` in a temp folder, so real data is never touched
+- `--quick` skips the launch tests
+
+<details>
+<summary>中文</summary>
+
+- 新增 `npm run doctor`（或 `node tools/doctor.js`）：一次收齐启动失败所需信息——会干扰 Electron 的环境变量、二进制是否存在/大小、`electron --version`、最小 Electron 应用、本项目实际启动、权限、已注册的安全软件、最近的 Windows 崩溃事件，最后直接给结论
+- 启动测试使用临时目录的独立 `--user-data-dir`，不会碰真实数据
+- `--quick` 跳过启动测试
+
+</details>
+
 ## v2.2.1 — Launcher Diagnostics
 
 - `node launch.js` no longer fails silently: it prints the Electron path before starting, and when Electron exits within 5 s with code 0 it explains that a single-instance lock is almost certainly the cause (an old instance is still running in the tray) and how to fix it
