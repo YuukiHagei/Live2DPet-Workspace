@@ -34,9 +34,15 @@ class CalendarApp {
             schedTitle: document.getElementById('sched-title'),
             schedStart: document.getElementById('sched-start'),
             schedEnd: document.getElementById('sched-end'),
+            schedRepeat: document.getElementById('sched-repeat'),
+            schedWeekdays: document.getElementById('sched-weekdays'),
+            schedUntilRow: document.getElementById('sched-until-row'),
+            schedUntil: document.getElementById('sched-until'),
+            schedRepeatHint: document.getElementById('sched-repeat-hint'),
             schedLocation: document.getElementById('sched-location'),
             schedNotes: document.getElementById('sched-notes'),
             schedSave: document.getElementById('sched-save'),
+            schedSkip: document.getElementById('sched-skip'),
             schedDelete: document.getElementById('sched-delete'),
             schedCancel: document.getElementById('sched-cancel'),
             // todo modal
@@ -104,8 +110,14 @@ class CalendarApp {
 
         // 模态框按钮
         this.el.schedSave.onclick = () => this.saveSchedule();
+        this.el.schedSkip.onclick = () => this.skipScheduleOccurrence();
         this.el.schedDelete.onclick = () => this.deleteSchedule();
         this.el.schedCancel.onclick = () => this.closeModal('schedule');
+        // 重复方式切换 → 显示/隐藏周几、截止日期
+        this.el.schedRepeat.onchange = () => this._syncRepeatUI();
+        this.el.schedWeekdays.querySelectorAll('input').forEach(cb => {
+            cb.onchange = () => this._syncRepeatUI();
+        });
         this.el.todoSave.onclick = () => this.saveTodo();
         this.el.todoDelete.onclick = () => this.deleteTodo();
         this.el.todoCancel.onclick = () => this.closeModal('todo');
@@ -199,6 +211,10 @@ class CalendarApp {
     _tsToLocalInput(ts) {
         const d = new Date(ts);
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    _tsToDateInput(ts) {
+        const d = new Date(ts);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
     _localInputToTs(str) {
         if (!str) return null;
@@ -479,7 +495,16 @@ class CalendarApp {
         meta.className = 'item-meta';
         const parts = ['📅 日程'];
         if (s.location) parts.push('@ ' + s.location);
-        if (s.endAt) parts.push('至 ' + new Date(s.endAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }));
+        if (s.endAt) {
+            const sameDay = this._tsToDateKey(s.endAt) === this._tsToDateKey(s.startAt);
+            parts.push('至 ' + (sameDay
+                ? this._formatTime(s.endAt)
+                : new Date(s.endAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })));
+        }
+        if (s.repeat) {
+            const desc = (window.ScheduleRepeat && window.ScheduleRepeat.describeRepeat(s.repeat)) || '重复';
+            parts.push('🔁 ' + desc);
+        }
         meta.textContent = parts.join(' · ');
         main.appendChild(meta);
         item.appendChild(main);
@@ -649,15 +674,37 @@ class CalendarApp {
     // ---- 日程 ----
 
     openScheduleModal(s) {
-        this.editing = { type: 'schedule', id: s ? s.id : null };
-        this.el.schedTitleLabel.textContent = s ? '编辑日程' : '新建日程';
+        const isSeries = !!(s && s.repeat);
+        this.editing = {
+            type: 'schedule',
+            id: s ? s.id : null,
+            // 重复日程：记住这一次是哪天，用于「跳过本次」
+            occurrenceStart: s && s.occurrenceOf ? s.occurrenceStart : null,
+            series: isSeries
+        };
+        this.el.schedTitleLabel.textContent = s
+            ? (isSeries ? '编辑重复日程' : '编辑日程')
+            : '新建日程';
+        const weekdayBoxes = this.el.schedWeekdays.querySelectorAll('input');
         if (s) {
             this.el.schedTitle.value = s.title || '';
-            this.el.schedStart.value = this._tsToLocalInput(s.startAt);
-            this.el.schedEnd.value = s.endAt ? this._tsToLocalInput(s.endAt) : '';
+            // 重复日程显示「系列起始」而不是被点开的那一天，避免改时间时把系列整体挪走
+            const baseStart = s.seriesStartAt || s.startAt;
+            const baseEnd = s.seriesEndAt || s.endAt;
+            this.el.schedStart.value = this._tsToLocalInput(baseStart);
+            this.el.schedEnd.value = baseEnd ? this._tsToLocalInput(baseEnd) : '';
             this.el.schedLocation.value = s.location || '';
             this.el.schedNotes.value = s.notes || '';
             this.el.schedDelete.style.display = '';
+            // 重复字段
+            const rp = s.repeat || null;
+            this.el.schedRepeat.value = rp ? rp.freq : 'none';
+            weekdayBoxes.forEach(cb => {
+                cb.checked = !!(rp && rp.freq === 'weekly' && (rp.weekdays || []).includes(Number(cb.value)));
+            });
+            this.el.schedUntil.value = rp && rp.until ? this._tsToDateInput(rp.until) : '';
+            // 只有「某一次」才能跳过整条系列
+            this.el.schedSkip.style.display = this.editing.occurrenceStart ? '' : 'none';
         } else {
             this.el.schedTitle.value = '';
             const d = this.selectedDate;
@@ -667,9 +714,55 @@ class CalendarApp {
             this.el.schedLocation.value = '';
             this.el.schedNotes.value = '';
             this.el.schedDelete.style.display = 'none';
+            this.el.schedSkip.style.display = 'none';
+            this.el.schedRepeat.value = 'none';
+            weekdayBoxes.forEach(cb => { cb.checked = false; });
+            this.el.schedUntil.value = '';
         }
+        this._syncRepeatUI();
         this.el.modalSchedule.classList.add('show');
         setTimeout(() => this.el.schedTitle.focus(), 50);
+    }
+
+    /** 重复方式切换时，显示/隐藏周几与截止日期 */
+    _syncRepeatUI() {
+        const freq = this.el.schedRepeat.value;
+        const repeating = freq !== 'none';
+        this.el.schedWeekdays.style.display = freq === 'weekly' ? 'flex' : 'none';
+        this.el.schedUntilRow.style.display = repeating ? '' : 'none';
+        this.el.schedRepeatHint.style.display = repeating ? '' : 'none';
+        if (!repeating) this.el.schedUntil.value = '';
+        if (this.editing.series && repeating) {
+            const d = new Date(this._localInputToTs(this.el.schedStart.value) || Date.now());
+            this.el.schedRepeatHint.textContent =
+                `重复日程：改动会应用到所有日期（系列从 ${d.getMonth() + 1}月${d.getDate()}日 起）。`
+                + '只想取消某一天，请用「跳过本次」。';
+        } else {
+            this.el.schedRepeatHint.textContent =
+                '重复日程每次都是这段时间（例如 07:00–07:35），每天各算一次，不是把日程拉长到多天。';
+        }
+        // 选「每周」但一个都没勾时，默认勾上开始时间那天的星期几
+        if (freq === 'weekly') {
+            const boxes = Array.from(this.el.schedWeekdays.querySelectorAll('input'));
+            if (!boxes.some(cb => cb.checked)) {
+                const ts = this._localInputToTs(this.el.schedStart.value);
+                const wd = ts ? new Date(ts).getDay() : new Date().getDay();
+                const target = boxes.find(cb => Number(cb.value) === wd);
+                if (target) target.checked = true;
+            }
+        }
+    }
+
+    _collectRepeat() {
+        const repeat = this.el.schedRepeat.value;
+        if (repeat === 'none') return { repeat: 'none' };
+        const weekdays = Array.from(this.el.schedWeekdays.querySelectorAll('input:checked'))
+            .map(cb => Number(cb.value));
+        return {
+            repeat,
+            weekdays,
+            repeatUntil: this.el.schedUntil.value || ''
+        };
     }
 
     async saveSchedule() {
@@ -680,6 +773,7 @@ class CalendarApp {
         const endAt = this._localInputToTs(this.el.schedEnd.value);
         const location = this.el.schedLocation.value.trim();
         const notes = this.el.schedNotes.value.trim();
+        const repeatArgs = this._collectRepeat();
 
         this.el.schedSave.disabled = true;
         this.el.schedSave.textContent = '保存中...';
@@ -688,10 +782,10 @@ class CalendarApp {
             if (this.editing.id) {
                 r = await window.electronAPI.agentUpdateSchedule({
                     idOrTitle: this.editing.id,
-                    title, startAt, endAt: endAt || '', location, notes
+                    title, startAt, endAt: endAt || '', location, notes, ...repeatArgs
                 });
             } else {
-                r = await window.electronAPI.agentAddSchedule({ title, startAt, endAt, location, notes });
+                r = await window.electronAPI.agentAddSchedule({ title, startAt, endAt, location, notes, ...repeatArgs });
             }
             if (!r.success) { alert('保存失败：' + r.error); return; }
             this.closeModal('schedule');
@@ -705,10 +799,31 @@ class CalendarApp {
 
     async deleteSchedule() {
         if (!this.editing.id) return;
-        if (!confirm('确定删除这个日程吗？')) return;
+        const msg = this.editing.series
+            ? '这是一条重复日程，删除会移除【所有日期】。\n\n只想取消某一天的话，请用「跳过本次」。确定删除整条系列吗？'
+            : '确定删除这个日程吗？';
+        if (!confirm(msg)) return;
         try {
             const r = await window.electronAPI.agentDeleteSchedule({ idOrTitle: this.editing.id });
             if (!r.success) { alert('删除失败：' + r.error); return; }
+            this.closeModal('schedule');
+            await this.reload();
+        } catch (e) { alert('异常：' + e.message); }
+    }
+
+    /** 跳过重复日程的某一次（其他日期保留） */
+    async skipScheduleOccurrence() {
+        if (!this.editing.id || !this.editing.occurrenceStart) return;
+        const when = new Date(this.editing.occurrenceStart).toLocaleString('zh-CN', {
+            month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+        });
+        if (!confirm(`跳过 ${when} 这一次？\n\n其他日期不受影响，整条重复日程仍然保留。`)) return;
+        try {
+            const r = await window.electronAPI.agentSkipScheduleOccurrence({
+                idOrTitle: this.editing.id,
+                occurrenceStart: this.editing.occurrenceStart
+            });
+            if (!r.success) { alert('跳过失败：' + r.error); return; }
             this.closeModal('schedule');
             await this.reload();
         } catch (e) { alert('异常：' + e.message); }

@@ -2064,13 +2064,16 @@ ${lines.join('\n')}
                 type: 'function',
                 function: {
                     name: 'add_schedule',
-                    description: '添加日程安排。用户说"X点要..."、"约了..."、"安排..."、"开会"时调用。',
+                    description: '添加日程安排。用户说"X点要..."、"约了..."、"安排..."、"开会"时调用。用户说"每天/每周X"这类重复安排时，用 repeat/weekdays 参数，不要连续建多条。',
                     parameters: {
                         type: 'object',
                         properties: {
                             title: { type: 'string', description: '日程标题' },
                             startAt: { type: 'string', description: '开始时间（ISO 格式，如 2026-09-23T15:00:00）' },
                             endAt: { type: 'string', description: '结束时间（ISO 格式，可选）' },
+                            repeat: { type: 'string', enum: ['none', 'daily', 'weekly'], description: '重复方式：none 不重复（默认）；daily 每天；weekly 每周（配合 weekdays）。"每天早上7点背单词"→daily；"每周一三五"→weekly + weekdays' },
+                            weekdays: { type: 'array', items: { type: 'integer' }, description: '每周重复的星期，0=周日、1=周一 … 6=周六；仅 repeat=weekly 时有效' },
+                            repeatUntil: { type: 'string', description: '重复截止日期（YYYY-MM-DD，可选；不填表示一直重复）' },
                             location: { type: 'string', description: '地点（可选）' },
                             notes: { type: 'string', description: '备注（可选）' }
                         },
@@ -2096,7 +2099,7 @@ ${lines.join('\n')}
                 type: 'function',
                 function: {
                     name: 'update_schedule',
-                    description: '修改已有日程。用户说"把X改到Y时间"、"X改成..."、"日程改期"时调用。',
+                    description: '修改已有日程。用户说"把X改到Y时间"、"X改成..."、"日程改期"时调用。改重复规则时传 repeat/weekdays；传 repeat="none" 取消重复。',
                     parameters: {
                         type: 'object',
                         properties: {
@@ -2104,6 +2107,9 @@ ${lines.join('\n')}
                             title: { type: 'string', description: '新标题（可选）' },
                             startAt: { type: 'string', description: '新开始时间（ISO 格式，可选）' },
                             endAt: { type: 'string', description: '新结束时间（ISO 格式，传空字符串清空，可选）' },
+                            repeat: { type: 'string', enum: ['none', 'daily', 'weekly'], description: '新的重复方式（可选）；none 表示取消重复' },
+                            weekdays: { type: 'array', items: { type: 'integer' }, description: '每周重复的星期 0-6（可选，仅 weekly）' },
+                            repeatUntil: { type: 'string', description: '重复截止日期（YYYY-MM-DD，可选）' },
                             location: { type: 'string', description: '新地点（可选）' },
                             notes: { type: 'string', description: '新备注（可选）' }
                         },
@@ -2913,7 +2919,10 @@ ${lines.join('\n')}
             const endStr = s.endAt ? new Date(s.endAt).toLocaleString('zh-CN') : '';
             const timeRange = endStr ? `${startStr} 至 ${endStr}` : startStr;
             const loc = s.location ? ` @ ${s.location}` : '';
-            return `已添加日程：${s.title}（${timeRange}${loc}）`;
+            const repeatStr = s.repeat
+                ? (s.repeat.freq === 'daily' ? '，每天重复' : `，每周${(s.repeat.weekdays || []).map(d => '日一二三四五六'[d]).join('、')}重复`)
+                : '';
+            return `已添加日程：${s.title}（${timeRange}${loc}${repeatStr}）`;
         }
         if (name === 'list_schedules') {
             const r = await window.electronAPI.agentListSchedules(args);
@@ -2925,7 +2934,10 @@ ${lines.join('\n')}
                 const timeRange = endStr ? `${startStr} 至 ${endStr}` : startStr;
                 const loc = s.location ? ` @ ${s.location}` : '';
                 const notes = s.notes ? ` [备注：${s.notes}]` : '';
-                return `📅 ${s.title}${loc} —— ${timeRange}${notes}`;
+                const repeatStr = s.repeat
+                    ? (s.repeat.freq === 'daily' ? ' 🔁每天' : ` 🔁每周${(s.repeat.weekdays || []).map(d => '日一二三四五六'[d]).join('、')}`)
+                    : '';
+                return `📅 ${s.title}${loc} —— ${timeRange}${repeatStr}${notes}`;
             });
             return lines.join('\n');
         }
@@ -2937,7 +2949,10 @@ ${lines.join('\n')}
             const endStr = s.endAt ? new Date(s.endAt).toLocaleString('zh-CN') : '';
             const timeRange = endStr ? `${startStr} 至 ${endStr}` : startStr;
             const loc = s.location ? ` @ ${s.location}` : '';
-            return `已修改日程：${s.title}（${timeRange}${loc}）\n变更：${r.changes.join('，')}`;
+            const repeatStr = s.repeat
+                ? (s.repeat.freq === 'daily' ? '，每天重复' : `，每周${(s.repeat.weekdays || []).map(d => '日一二三四五六'[d]).join('、')}重复`)
+                : '';
+            return `已修改日程：${s.title}（${timeRange}${loc}${repeatStr}）\n变更：${r.changes.join('，')}`;
         }
         if (name === 'delete_schedule') {
             const r = await window.electronAPI.agentDeleteSchedule(args);

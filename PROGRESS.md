@@ -47,6 +47,16 @@
 - 导入后冻结 DataStore 内存态并提示重启，避免 500ms debounce 把旧数据写回去
 - 回归测试：`tests/test-data-backup.js`（11 项，直接 `node tests/test-data-backup.js` 可跑）
 
+### Phase 4: 重复日程
+
+- 一条日程记录带 `repeat` 规则（daily / weekly + 可选截止日期 + exdates），读取时展开成「每天那一次」
+- 与「持续多天」严格区分：重复日程每次时长不变（07:00–07:35 每天各一次），不会画成跨天色带
+- 日历新建/编辑弹窗：重复方式下拉、周几选择、重复到哪天；「跳过本次」只取消某一天
+- Agent 工具 `add_schedule` / `update_schedule` 支持 repeat / weekdays / repeatUntil，模型可直接建重复日程
+- PWA 同步认这个字段：按同一算法展开 + 显示 🔁 标签，手机上也能看每天的安排
+- 云同步合并按 id + updatedAt 合并整条记录，不受展开影响
+- 回归测试：`tests/test-schedule-repeat.js`（21 项）
+
 ## TODO
 
 - [ ] 自定义图标: PNG→ICO 转换, BrowserWindow.setIcon()

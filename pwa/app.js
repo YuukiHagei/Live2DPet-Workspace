@@ -364,37 +364,101 @@
     // ============================================================
     // 日程
     // ============================================================
+    const WD_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+    /** 本地当天 0 点（不能用 toISOString，会按 UTC 挪日期） */
+    function startOfDayLocal(ts) {
+        const d = new Date(ts);
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    }
+    function toLocalDate(ts) {
+        const d = new Date(ts);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    /**
+     * 展开重复日程（与桌面端 src/core/schedule-repeat.js 同一算法）。
+     * PWA 直接读 Gist 里的原始 JSON，所以必须自己展开，否则一条「每天」的日程
+     * 只会在起始那天出现一次。
+     */
+    function expandSchedulesForDisplay(schedules) {
+        const now = Date.now();
+        const from = now - 30 * 86400000;
+        const to = now + 120 * 86400000;
+        const out = [];
+        for (const s of schedules) {
+            if (!s.repeat || !s.repeat.freq) {
+                if ((s.endAt || s.startAt) >= from) out.push(s);
+                continue;
+            }
+            const baseStart = s.startAt;
+            const duration = s.endAt ? Math.max(0, s.endAt - baseStart) : 0;
+            const until = typeof s.repeat.until === 'number' ? s.repeat.until : null;
+            const exdates = new Set(s.repeat.exdates || []);
+            const b = new Date(baseStart);
+            const hh = b.getHours(), mi = b.getMinutes(), ss = b.getSeconds(), ms = b.getMilliseconds();
+            const first = Math.max(startOfDayLocal(from - duration), startOfDayLocal(baseStart));
+            const last = Math.min(to, until === null ? to : until);
+            for (let dayTs = first; dayTs <= last; dayTs += 86400000) {
+                const day = new Date(dayTs);
+                if (dayTs < startOfDayLocal(baseStart)) continue;
+                if (s.repeat.freq === 'weekly') {
+                    const days = (s.repeat.weekdays && s.repeat.weekdays.length) ? s.repeat.weekdays : [b.getDay()];
+                    if (!days.includes(day.getDay())) continue;
+                } else if (s.repeat.freq !== 'daily') {
+                    continue;
+                }
+                const occStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hh, mi, ss, ms).getTime();
+                if (occStart < baseStart) continue;
+                if (exdates.has(occStart)) continue;
+                const occEnd = s.endAt ? occStart + duration : null;
+                out.push(Object.assign({}, s, {
+                    startAt: occStart,
+                    endAt: occEnd,
+                    occurrenceOf: s.id,
+                    occurrenceStart: occStart
+                }));
+            }
+        }
+        return out.sort((a, b) => a.startAt - b.startAt);
+    }
+
+    function repeatLabel(rp) {
+        if (!rp || !rp.freq) return '';
+        if (rp.freq === 'daily') return '🔁 每天';
+        if (rp.freq === 'weekly') {
+            const days = (rp.weekdays || []).slice().sort((a, b) => a - b);
+            return '🔁 每周' + days.map(d => WD_LABELS[d]).join('、');
+        }
+        return '';
+    }
+
     function renderSchedules() {
         const schedules = parsed.schedules?.schedules || [];
         if (schedules.length === 0) {
             $content.innerHTML = '<div class="empty"><div class="emoji">📅</div>没有日程<br>点右上角 + 添加</div>';
             return;
         }
-        const now = Date.now();
-        const from = now - 30 * 86400000;
-        const filtered = schedules
-            .filter(s => {
-                const end = s.endAt || s.startAt;
-                return end >= from;
-            })
-            .sort((a, b) => a.startAt - b.startAt);
+        const filtered = expandSchedulesForDisplay(schedules);
         if (filtered.length === 0) {
             $content.innerHTML = '<div class="empty"><div class="emoji">📅</div>没有近期日程</div>';
             return;
         }
         $content.innerHTML = filtered.map(s => {
             const startStr = fmtDateTime(s.startAt);
-            const endStr = s.endAt ? ' 至 ' + fmtDateTime(s.endAt) : '';
+            const sameDay = s.endAt && startOfDayLocal(s.endAt) === startOfDayLocal(s.startAt);
+            const endStr = s.endAt ? ' 至 ' + (sameDay ? fmtTime(s.endAt) : fmtDateTime(s.endAt)) : '';
             const metaParts = [];
             if (s.location) metaParts.push('📍 ' + escapeHtml(s.location));
             if (s.notes) metaParts.push(escapeHtml(s.notes));
+            const rpLabel = repeatLabel(s.repeat);
             return `<div class="card schedule" data-id="${s.id}">
                 <div class="card-header">
                     <div class="card-time">${fmtDate(s.startAt)}</div>
                     <div class="card-body tappable" data-action="edit">
                         <div class="card-title">${escapeHtml(s.title)}</div>
                         <div class="card-meta">${startStr}${endStr}</div>
-                        ${metaParts.length ? '<div class="card-meta">' + metaParts.join(' · ') + '</div>' : ''}
+                        ${(metaParts.length || rpLabel) ? '<div class="card-meta">' + [rpLabel].concat(metaParts).filter(Boolean).join(' · ') + '</div>' : ''}
                     </div>
                 </div>
             </div>`;
@@ -405,6 +469,57 @@
                 showEditScheduleModal(card.dataset.id);
             });
         });
+    }
+
+    /** 重复设置的表单片段（新建 / 编辑共用） */
+    function repeatFieldsHtml(rp) {
+        const freq = (rp && rp.freq) || 'none';
+        const days = (rp && rp.weekdays) || [];
+        const checkbox = (d) => `<label style="display:inline-flex;align-items:center;gap:3px;margin:0;font-size:12px;"><input type="checkbox" value="${d}"${days.includes(d) ? ' checked' : ''}>周${WD_LABELS[d]}</label>`;
+        return `
+            <label>重复</label>
+            <select id="m-sch-repeat">
+                <option value="none"${freq === 'none' ? ' selected' : ''}>不重复</option>
+                <option value="daily"${freq === 'daily' ? ' selected' : ''}>每天</option>
+                <option value="weekly"${freq === 'weekly' ? ' selected' : ''}>每周</option>
+            </select>
+            <div id="m-sch-weekdays" style="display:${freq === 'weekly' ? 'flex' : 'none'};gap:10px;margin-top:8px;flex-wrap:wrap;">
+                ${[1, 2, 3, 4, 5, 6, 0].map(checkbox).join('')}
+            </div>
+            <div id="m-sch-until-row" style="display:${freq === 'none' ? 'none' : 'block'};margin-top:8px;">
+                <label>重复到（可选）</label>
+                <input type="date" id="m-sch-until" value="${rp && rp.until ? toLocalDate(rp.until) : ''}">
+            </div>`;
+    }
+
+    function bindRepeatFields() {
+        const sel = document.getElementById('m-sch-repeat');
+        if (!sel) return;
+        sel.onchange = () => {
+            const wd = document.getElementById('m-sch-weekdays');
+            const row = document.getElementById('m-sch-until-row');
+            if (wd) wd.style.display = sel.value === 'weekly' ? 'flex' : 'none';
+            if (row) row.style.display = sel.value === 'none' ? 'none' : 'block';
+        };
+    }
+
+    function collectRepeat() {
+        const sel = document.getElementById('m-sch-repeat');
+        if (!sel || sel.value === 'none') return null;
+        const weekdays = Array.from(document.querySelectorAll('#m-sch-weekdays input:checked'))
+            .map(i => Number(i.value));
+        const untilVal = document.getElementById('m-sch-until')?.value || '';
+        let until = null;
+        if (untilVal) {
+            const [y, m, d] = untilVal.split('-').map(Number);
+            until = new Date(y, m - 1, d).getTime() + 86400000 - 1;
+        }
+        return {
+            freq: sel.value,
+            weekdays: sel.value === 'weekly' ? weekdays : [],
+            until,
+            exdates: []
+        };
     }
 
     function showAddScheduleModal() {
@@ -419,6 +534,7 @@
             <input type="datetime-local" id="m-sch-start" value="${toLocalInput(def.getTime())}">
             <label>结束时间（可选）</label>
             <input type="datetime-local" id="m-sch-end">
+            ${repeatFieldsHtml(null)}
             <label>地点（可选）</label>
             <input type="text" id="m-sch-location" placeholder="如：图书馆">
             <label>备注（可选）</label>
@@ -429,6 +545,7 @@
             </div>
         `);
         document.getElementById('m-cancel').onclick = closeModal;
+        bindRepeatFields();
         document.getElementById('m-save').onclick = async () => {
             const title = document.getElementById('m-sch-title').value.trim();
             if (!title) return toast('标题不能为空');
@@ -446,6 +563,8 @@
                 createdAt: now,
                 updatedAt: now
             };
+            const rp = collectRepeat();
+            if (rp) sch.repeat = rp;
             parsed.schedules.schedules.push(sch);
             try {
                 await syncToGist();
@@ -471,6 +590,7 @@
             <input type="datetime-local" id="m-sch-start" value="${toLocalInput(s.startAt)}">
             <label>结束时间（可选）</label>
             <input type="datetime-local" id="m-sch-end" value="${s.endAt ? toLocalInput(s.endAt) : ''}">
+            ${repeatFieldsHtml(s.repeat)}
             <label>地点（可选）</label>
             <input type="text" id="m-sch-location" value="${escapeHtml(s.location || '')}">
             <label>备注（可选）</label>
@@ -482,8 +602,12 @@
             </div>
         `);
         document.getElementById('m-cancel').onclick = closeModal;
+        bindRepeatFields();
         document.getElementById('m-delete').onclick = async () => {
-            if (!confirm('确定删除这个日程吗？')) return;
+            const msg = s.repeat
+                ? '这是一条重复日程，删除会移除所有日期。确定删除吗？'
+                : '确定删除这个日程吗？';
+            if (!confirm(msg)) return;
             parsed.schedules.schedules = parsed.schedules.schedules.filter(x => x.id !== id);
             try {
                 await syncToGist();
@@ -504,6 +628,13 @@
             s.endAt = endStr ? new Date(endStr).getTime() : null;
             s.location = document.getElementById('m-sch-location').value.trim();
             s.notes = document.getElementById('m-sch-notes').value.trim();
+            const rp = collectRepeat();
+            if (rp) {
+                rp.exdates = (s.repeat && Array.isArray(s.repeat.exdates)) ? s.repeat.exdates : [];
+                s.repeat = rp;
+            } else {
+                delete s.repeat;
+            }
             s.updatedAt = Date.now();
             try {
                 await syncToGist();

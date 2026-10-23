@@ -118,6 +118,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     agentListSchedules: (args) => ipcRenderer.invoke('agent-list-schedules', args),
     agentUpdateSchedule: (args) => ipcRenderer.invoke('agent-update-schedule', args),
     agentDeleteSchedule: (args) => ipcRenderer.invoke('agent-delete-schedule', args),
+    agentSkipScheduleOccurrence: (args) => ipcRenderer.invoke('agent-skip-schedule-occurrence', args),
     agentAddFlashcard: (args) => ipcRenderer.invoke('agent-add-flashcard', args),
     agentListFlashcards: (args) => ipcRenderer.invoke('agent-list-flashcards', args),
     agentGetDueCards: (args) => ipcRenderer.invoke('agent-get-due-cards', args),

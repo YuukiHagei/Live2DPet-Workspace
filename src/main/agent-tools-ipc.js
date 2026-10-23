@@ -97,6 +97,16 @@ function registerAgentToolsIPC(ctx, ipcMain, deps) {
         }
     });
 
+    // 跳过重复日程的某一次（不删整条系列）
+    ipcMain.handle('agent-skip-schedule-occurrence', async (event, args) => {
+        try {
+            const schedule = dataStore.skipScheduleOccurrence(args || {});
+            return { success: true, schedule };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
     // ========== 提醒 ==========
 
     ipcMain.handle('agent-add-reminder', async (event, args) => {

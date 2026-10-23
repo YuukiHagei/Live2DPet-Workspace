@@ -3,6 +3,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { normalizeRepeat, expandSchedule } = require('../core/schedule-repeat');
 
 function generateId(prefix) {
     const rand = Math.random().toString(36).slice(2, 6);
@@ -392,12 +393,16 @@ class DataStore {
 
     // ========== 日程 ==========
 
-    addSchedule({ title, startAt, endAt, location, notes }) {
+    addSchedule({ title, startAt, endAt, location, notes, repeat, weekdays, repeatUntil, until }) {
         if (!title || !title.trim()) throw new Error('日程标题不能为空');
         const start = parseTime(startAt);
         if (start === null) throw new Error(`无法解析开始时间：${startAt}`);
         const end = parseTime(endAt);
         const now = Date.now();
+        const repeatRule = normalizeRepeat(
+            { repeat, weekdays, repeatUntil: repeatUntil !== undefined ? repeatUntil : until },
+            start
+        );
         const schedule = {
             id: generateId('sch'),
             title: title.trim(),
@@ -408,6 +413,7 @@ class DataStore {
             createdAt: now,
             updatedAt: now
         };
+        if (repeatRule) schedule.repeat = repeatRule;
         this.schedules.push(schedule);
         this._markDirty();
         return schedule;
@@ -419,17 +425,17 @@ class DataStore {
         const fromTs = parseTime(from) ?? todayStart;
         const toTs = parseTime(to) ?? (todayStart + 7 * 86400000);
 
-        return this.schedules
-            .filter(s => {
-                const sStart = s.startAt;
-                const sEnd = s.endAt || s.startAt;
-                // 日程与查询区间有交集：日程开始 ≤ 查询结束 且 日程结束 ≥ 查询开始
-                return sStart <= toTs && sEnd >= fromTs;
-            })
-            .sort((a, b) => a.startAt - b.startAt);
+        // 重复日程在这里展开成「每一次」，不重复的原样返回。
+        // 返回的都是副本（startAt/endAt 换成当次时间），编辑时用 id 回查系列本身。
+        const out = [];
+        for (const s of this.schedules) {
+            const occurrences = expandSchedule(s, fromTs, toTs);
+            for (const occ of occurrences) out.push(occ);
+        }
+        return out.sort((a, b) => a.startAt - b.startAt);
     }
 
-    updateSchedule({ idOrTitle, title, startAt, endAt, location, notes }) {
+    updateSchedule({ idOrTitle, title, startAt, endAt, location, notes, repeat, weekdays, repeatUntil, until }) {
         if (!idOrTitle) throw new Error('缺少日程 ID 或标题');
         const needle = idOrTitle.trim();
         let target = this.schedules.find(s => s.id === needle);
@@ -469,10 +475,64 @@ class DataStore {
             changes.push('备注');
         }
 
+        // 重复规则：传 'none'/''/null 表示取消重复
+        if (repeat !== undefined) {
+            if (repeat === null || repeat === '' || repeat === 'none') {
+                if (target.repeat) {
+                    delete target.repeat;
+                    changes.push('重复');
+                }
+            } else {
+                const rule = normalizeRepeat(
+                    { repeat, weekdays, repeatUntil: repeatUntil !== undefined ? repeatUntil : until },
+                    target.startAt
+                );
+                if (rule) {
+                    target.repeat = rule;
+                    changes.push('重复');
+                } else if (target.repeat) {
+                    delete target.repeat;
+                    changes.push('重复');
+                }
+            }
+        }
+
         if (changes.length === 0) throw new Error('没有提供任何要修改的字段');
         target.updatedAt = Date.now();
         this._markDirty();
         return { schedule: target, changes };
+    }
+
+    /**
+     * 跳过重复日程的「某一次」（不删除整条系列）。
+     * occurrenceStart 必须是展开时算出来的当次开始时间（毫秒时间戳），
+     * 这样服务端能校验它确实是一次真实存在，而不是随手塞的时间。
+     */
+    skipScheduleOccurrence({ idOrTitle, occurrenceStart }) {
+        if (!idOrTitle) throw new Error('缺少日程 ID 或标题');
+        const needle = String(idOrTitle).trim();
+        let target = this.schedules.find(s => s.id === needle);
+        if (!target) target = this.schedules.find(s => s.title.includes(needle));
+        if (!target) throw new Error(`未找到日程：${needle}`);
+        if (!target.repeat) throw new Error('这不是重复日程，直接删除即可');
+
+        const ts = parseTime(occurrenceStart);
+        if (ts === null) throw new Error(`无法解析要跳过的日期：${occurrenceStart}`);
+
+        // 用同一套展开逻辑验证这一次真实存在
+        const dayStart = new Date(ts);
+        dayStart.setHours(0, 0, 0, 0);
+        const existing = expandSchedule(target, dayStart.getTime(), dayStart.getTime() + 86400000 - 1);
+        if (!existing.some(o => o.occurrenceStart === ts)) {
+            throw new Error('这次不在重复范围内（可能已经跳过或日期不对）');
+        }
+
+        const exdates = new Set(Array.isArray(target.repeat.exdates) ? target.repeat.exdates : []);
+        exdates.add(ts);
+        target.repeat = { ...target.repeat, exdates: Array.from(exdates).sort((a, b) => a - b) };
+        target.updatedAt = Date.now();
+        this._markDirty();
+        return target;
     }
 
     deleteSchedule({ idOrTitle }) {

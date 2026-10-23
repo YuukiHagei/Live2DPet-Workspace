@@ -358,6 +358,25 @@
         .btn-cancel:hover { background: #ddd; }
         .btn-delete { background: #e08080; color: #fff; }
         .btn-delete:hover { background: #d06060; }
+        .btn-skip { background: #e8b96b; color: #fff; }
+        .btn-skip:hover { background: #d8a95b; }
+
+        /* 重复日程：周几选择 + 提示 */
+        .weekday-picker { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+        .weekday-picker label {
+            display: flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; margin: 0; cursor: pointer;
+            border: 1px solid #ddd; border-radius: 8px; background: #fff;
+            font-size: 12px; color: #666; user-select: none;
+        }
+        .weekday-picker label:has(input:checked) {
+            background: #7eb8e8; border-color: #7eb8e8; color: #fff;
+        }
+        .weekday-picker input { display: none; }
+        .repeat-hint {
+            font-size: 11px; color: #888; line-height: 1.5;
+            margin-top: 6px; background: #f7f9fb; border-radius: 6px; padding: 6px 8px;
+        }
     </style>
 </head>
 <body>
@@ -419,12 +438,35 @@
             <input type="datetime-local" id="sched-start">
             <label>结束时间（可选）</label>
             <input type="datetime-local" id="sched-end">
+            <label>重复</label>
+            <select id="sched-repeat">
+                <option value="none">不重复</option>
+                <option value="daily">每天</option>
+                <option value="weekly">每周</option>
+            </select>
+            <div class="weekday-picker" id="sched-weekdays" style="display:none">
+                <label><input type="checkbox" value="1"><span>一</span></label>
+                <label><input type="checkbox" value="2"><span>二</span></label>
+                <label><input type="checkbox" value="3"><span>三</span></label>
+                <label><input type="checkbox" value="4"><span>四</span></label>
+                <label><input type="checkbox" value="5"><span>五</span></label>
+                <label><input type="checkbox" value="6"><span>六</span></label>
+                <label><input type="checkbox" value="0"><span>日</span></label>
+            </div>
+            <div id="sched-until-row" style="display:none">
+                <label>重复到（可选，留空表示一直重复）</label>
+                <input type="date" id="sched-until">
+            </div>
+            <p class="repeat-hint" id="sched-repeat-hint" style="display:none">
+                重复日程每次都是这段时间（例如 07:00–07:35），每天各算一次，不是把日程拉长到多天。
+            </p>
             <label>地点（可选）</label>
             <input type="text" id="sched-location" placeholder="如：图书馆">
             <label>备注（可选）</label>
             <textarea id="sched-notes" rows="2"></textarea>
             <div class="modal-btns">
                 <button class="btn-save" id="sched-save">保存</button>
+                <button class="btn-skip" id="sched-skip" style="display:none">跳过本次</button>
                 <button class="btn-delete" id="sched-delete" style="display:none">删除</button>
                 <button class="btn-cancel" id="sched-cancel">取消</button>
             </div>
@@ -490,6 +532,7 @@
         </div>
     </div>
 
-    <script src="src/renderer/calendar.js"></script>
+    <script src="src/core/schedule-repeat.js"></script>
+<script src="src/renderer/calendar.js"></script>
 </body>
 </html>

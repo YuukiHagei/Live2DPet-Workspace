@@ -1,5 +1,41 @@
 # Changelog
 
+## v2.2.0 — Recurring Schedules
+
+- Schedules can now repeat: daily, or weekly on selected weekdays, with an optional end date
+- A recurring schedule is stored as ONE record with a `repeat` rule and expanded into occurrences when read — it is not a multi-day span, so "英语单词 07:00–07:35 每天" shows up as one 35-minute entry per day instead of a stretched multi-day band
+- Calendar editor: repeat dropdown, weekday picker, "repeat until" date, plus "Skip this one" to cancel a single occurrence while keeping the series
+- Agent tools `add_schedule` / `update_schedule` accept `repeat` / `weekdays` / `repeatUntil`, so the model can create recurring schedules directly ("每天早上7点背单词")
+- PWA understands the same field: expands occurrences and shows a 🔁 label; the PWA editor can also create and edit recurrence
+- Cloud sync is unaffected: whole records are merged by id + updatedAt, occurrences are never written to disk
+- Tests: `tests/test-schedule-repeat.js` (21 cases)
+
+<details>
+<summary>中文</summary>
+
+- 日程支持重复：每天 / 每周指定星期几，可设截止日期
+- 重复日程存成**一条记录 + repeat 规则**，读取时展开成每一次，不是把日程拉长：像「英语单词 07:00–07:35 每天」会是每天一条 35 分钟，而不是一条跨多天色带
+- 日历编辑弹窗新增：重复方式、周几选择、重复到哪天，以及「跳过本次」（只取消某一天，保留整条系列）
+- Agent 工具 `add_schedule` / `update_schedule` 支持 repeat / weekdays / repeatUntil，模型可直接建重复日程（"每天早上7点背单词"）
+- PWA 认同一字段：按同一算法展开并显示 🔁 标签，PWA 编辑器也能新建/修改重复
+- 云同步不受影响：仍按 id + updatedAt 合并整条记录，展开结果从不落盘
+- 测试：`tests/test-schedule-repeat.js`（21 项）
+
+</details>
+
+<details>
+<summary>日本語</summary>
+
+- スケジュールの繰り返しに対応：毎日 / 毎週（曜日指定）、終了日の指定も可能
+- 繰り返しスケジュールは**1 レコード + repeat ルール**として保存し、読み出し時に各回へ展開します。期間を引き伸ばすのではなく、「英語単語 07:00–07:35 毎日」は毎日 35 分の 1 件として表示されます
+- カレンダー編集に「繰り返し」「曜日選択」「繰り返し終了日」「今回だけスキップ」を追加（シリーズは残したまま 1 回だけ取消）
+- Agent ツール `add_schedule` / `update_schedule` が repeat / weekdays / repeatUntil に対応し、モデルから直接繰り返しを作成可能
+- PWA も同じフィールドに対応：同じアルゴリズムで展開し 🔁 ラベルを表示、PWA 側でも作成・編集が可能
+- クラウド同期は影響なし：id + updatedAt でレコード単位にマージし、展開結果は保存しない
+- テスト：`tests/test-schedule-repeat.js`（21 件）
+
+</details>
+
 ## v2.1.1 — Local Backup (Export / Import)
 
 - New "Local Backup" card in the Cloud tab: export all data to a single JSON file and import it on another device — fully offline, no account needed
