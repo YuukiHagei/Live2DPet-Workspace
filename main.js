@@ -235,6 +235,9 @@ ipcMain.handle('mcp-test-server', async (event, config) => {
 });
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
+    // 这条日志在 Windows 控制台里不一定可见（Electron 是 GUI 程序），
+    // 真正的提示由 launch.js 在子进程退出后打印，见 launch.js 的 explainExit。
+    console.error('[Live2DPet] 已有一个实例在运行，本次启动退出。先退出托盘里的旧实例再启动。');
     app.quit();
 } else {
     app.on('second-instance', () => {

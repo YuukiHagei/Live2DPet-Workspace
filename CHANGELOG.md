@@ -1,5 +1,32 @@
 # Changelog
 
+## v2.2.1 — Launcher Diagnostics
+
+- `node launch.js` no longer fails silently: it prints the Electron path before starting, and when Electron exits within 5 s with code 0 it explains that a single-instance lock is almost certainly the cause (an old instance is still running in the tray) and how to fix it
+- Non-zero exits now report the exit code plus a hint to re-run with `--enable-logging`
+- `main.js` logs a line when the single-instance lock is refused
+- Tests: `tests/test-launch-diagnostics.js` (6 cases)
+
+<details>
+<summary>中文</summary>
+
+- `node launch.js` 不再「没反应」：启动前先打印 Electron 路径；若 5 秒内以退出码 0 结束，会明确说明这几乎肯定是单实例锁（托盘里还有旧实例）被命中，并给出处理命令
+- 非 0 退出会报出退出码，并提示用 `--enable-logging` 复现看详细日志
+- `main.js` 在单实例锁被拒绝时补一行日志
+- 测试：`tests/test-launch-diagnostics.js`（6 项）
+
+</details>
+
+<details>
+<summary>日本語</summary>
+
+- `node launch.js` が無反応に見えなくなりました：起動前に Electron のパスを表示し、5 秒以内に終了コード 0 で終了した場合はシングルインスタンスロック（トレイに旧インスタンスが残っている）が原因であることと対処法を表示します
+- 0 以外の終了では終了コードと `--enable-logging` での再実行案内を表示
+- `main.js` はロック取得に失敗したときログを1行出します
+- テスト：`tests/test-launch-diagnostics.js`（6 件）
+
+</details>
+
 ## v2.2.0 — Recurring Schedules
 
 - Schedules can now repeat: daily, or weekly on selected weekdays, with an optional end date
