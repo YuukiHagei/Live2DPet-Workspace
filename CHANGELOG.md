@@ -5,6 +5,7 @@
 - New `npm run doctor` (or `node tools/doctor.js`): collects everything needed to diagnose a launch failure — env vars that break Electron, binary presence/size, `electron --version`, a minimal Electron app, the actual project, elevation, registered antivirus, and recent Windows crash events — then prints a verdict
 - Runs the app with an isolated `--user-data-dir` in a temp folder, so real data is never touched
 - `--quick` skips the launch tests
+- Checks the executable's integrity label: a `Low Mandatory Level` label (inherited when a project folder is copied out of a sandbox) makes Chromium fail with `0x80000003` in ~18 ms — the doctor reports it and prints the `icacls` fix
 
 <details>
 <summary>中文</summary>

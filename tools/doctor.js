@@ -119,6 +119,18 @@ if (!exists) {
 }
 record('electron 可执行文件大小', true, `${fs.statSync(electronPath).size} 字节`);
 
+console.log('\n--- 2.6 文件完整性标签（带 Low 标签的 exe 会让 Chromium 18ms 内崩溃）---');
+const ic = spawnSync('icacls', [electronPath], { encoding: 'utf8', timeout: 15000, windowsHide: true });
+const icOut = [(ic.stdout || ''), (ic.stderr || '')].join('\n');
+if (ic.error) {
+    record('读取完整性标签失败', null, ic.error.message);
+} else if (/Low Mandatory Level/i.test(icOut)) {
+    record('electron.exe 带 Low 完整性标签（这就是 0x80000003 的原因）', false,
+        '修复：icacls "<项目根>" /setintegritylevel (OI)(CI)M 然后 icacls "<electron.exe>" /setintegritylevel M');
+} else {
+    record('完整性标签正常', true, '未发现 Low 标签');
+}
+
 console.log('\n--- 2.5 权限与安全软件（Chromium 沙箱常见干扰源）---');
 const who = spawnSync('whoami', ['/groups'], { encoding: 'utf8', timeout: 10000, windowsHide: true });
 const elevated = /S-1-16-12288/.test(who.stdout || '');
